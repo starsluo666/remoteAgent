@@ -1,0 +1,17 @@
+# Rust
+daemon/target/
+
+# Go
+relay/relay
+relay/relay.exe
+
+# Node
+web/node_modules/
+web/dist/
+
+# IDE / OS
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
