@@ -7,6 +7,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { DaemonConnection, type HelloFields, type Status } from './lib/daemon';
 import { b64encode, type SessionInfo } from './lib/protocol';
+import Connect, { saveConn } from './Connect';
 import './App.css';
 
 interface TermEntry {
@@ -16,10 +17,11 @@ interface TermEntry {
 }
 
 // 连接目标：
-// - ?relay=ws%3A%2F%2Fhost%3A8080%2Fws&device=<id>&token=<t> → 中继模式
+// - ?relay=ws%3A%2F%2Fhost%3A8080%2Fws&device=<id>&token=<t> → 中继模式（显式指定中继）
 // - ?device=<id>&token=<t>（页面由中继托管时）→ 同源 /ws
-// - 无参数 → 本地模式（daemon 直连）
-function target(): { url: string; hello: HelloFields; mode: string } {
+// - ?local=1 → 本地模式（daemon 直连）
+// - 无参数 → null，渲染连接页（粘贴配对链接 / 手动配置中继）
+function target(): { url: string; hello: HelloFields; mode: string } | null {
   const q = new URLSearchParams(location.search);
   const device = q.get('device');
   const token = q.get('token') ?? undefined;
@@ -30,12 +32,15 @@ function target(): { url: string; hello: HelloFields; mode: string } {
       : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
     return { url, hello: { deviceId: device, token }, mode: 'relay' };
   }
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  return {
-    url: `${proto}://${location.host}/ws`,
-    hello: { deviceId: 'local-browser' },
-    mode: 'local',
-  };
+  if (q.get('local') === '1') {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    return {
+      url: `${proto}://${location.host}/ws`,
+      hello: { deviceId: 'local-browser' },
+      mode: 'local',
+    };
+  }
+  return null;
 }
 
 const termTheme = {
@@ -115,6 +120,8 @@ export default function App() {
   const [deviceOnline, setDeviceOnline] = useState(true);
   const [devices, setDevices] = useState<{ deviceId: string; online: boolean }[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const savedConnRef = useRef(false);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -201,7 +208,7 @@ export default function App() {
 
   // 设备列表（中继提供；本地模式回退为单设备）
   const refetchDevices = useCallback(() => {
-    if (t.mode !== 'relay') return;
+    if (!t || t.mode !== 'relay') return;
     fetch('/api/devices')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((list: { deviceId: string; online: boolean }[]) => setDevices(list))
@@ -209,12 +216,31 @@ export default function App() {
   }, [t, status]);
 
   useEffect(() => {
+    if (!t) return;
     if (!wrapRef.current) return;
 
     const conn = new DaemonConnection(t.url, t.hello, {
       onStatus: (s) => {
         setStatus(s);
-        if (s === 'ready') bootstrapRef.current();
+        if (s === 'ready') {
+          bootstrapRef.current();
+          // 连接成功后记住这次配对，连接页可一键重连
+          if (!savedConnRef.current) {
+            savedConnRef.current = true;
+            let relayHost = location.host;
+            try {
+              if (t.mode === 'relay') relayHost = new URL(t.url).host;
+            } catch {
+              /* 保底用当前站点 */
+            }
+            saveConn({
+              url: location.href,
+              relayHost,
+              deviceId: t.hello.deviceId,
+              savedAt: Date.now(),
+            });
+          }
+        }
         if (s === 'disconnected') {
           setDeviceOnline(true);
           retryTimer = window.setTimeout(() => connRef.current?.connect(), 2000);
@@ -372,6 +398,12 @@ export default function App() {
 
   const activeEntry = active ? termsRef.current.get(active) : null;
   const online = deviceOnline && status === 'ready';
+
+  // 无连接目标：渲染连接页（选中继 / 粘贴配对链接 / 最近连接）
+  if (!t) {
+    return <Connect />;
+  }
+
   const statusBadge = !deviceOnline
     ? { cls: 'off', text: '离线' }
     : status === 'ready'
@@ -421,8 +453,8 @@ export default function App() {
             })}
             <button
               className="add-device"
-              onClick={copyPairLink}
-              title="复制配对链接，在浏览器打开即可接入此设备"
+              onClick={() => setConnectOpen(true)}
+              title="粘贴另一台设备的配对链接，连接后在此切换"
             >
               <IconPlus />
               添加新设备
@@ -551,6 +583,8 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {connectOpen && <Connect modal onClose={() => setConnectOpen(false)} />}
 
       {toast && (
         <div className="toast">

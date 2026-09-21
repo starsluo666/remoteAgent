@@ -44,6 +44,8 @@ async fn main() -> anyhow::Result<()> {
     });
 
     if let Some(url) = relay_url {
+        let secure = url.starts_with("wss://");
+        let scheme = if secure { "https" } else { "http" };
         let host = url
             .trim_start_matches("ws://")
             .trim_start_matches("wss://")
@@ -52,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or("relay");
         tracing::info!(device = %identity.device_id, "relay mode");
         tracing::info!(
-            "pair with: http://{host}/?device={}&token={}",
+            "pair with: {scheme}://{host}/?device={}&token={}",
             identity.device_id,
             identity.access_token
         );
