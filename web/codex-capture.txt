@@ -1,0 +1,17 @@
+[?9001h[?1004h[?25l[2J[m[H]0;C:\WINDOWS\system32\cmd.exe [?25hOpenAI Codex v0.155.0
+--------[1m
+workdir:[22m C:\Users\13106[1m
+model:[22m gpt-5.6-sol[1m
+provider:[22m openai[1m
+approval:[22m never[1m
+sandbox:[22m workspace-write [workdir, /tmp, $TMPDIR][1m
+reasoning effort:[22m xhigh[1m
+reasoning summaries:[22m none[1m
+session id:[22m 01a0c3f8-2b41-7191-aae5-73fc99f100c3
+--------[36m
+user[m
+"只回复两个字：好的"
+[35m[3mcodex[m
+好的
+[2mtokens used[22m
+3,647

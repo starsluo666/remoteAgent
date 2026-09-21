@@ -28,4 +28,7 @@ export interface SessionRow {
   id: string;
   cmd: string;
   startedAt: number;
+  agent?: string;
+  agentStatus?: string;
+  agentDetail?: string;
 }

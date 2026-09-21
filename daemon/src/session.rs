@@ -20,6 +20,7 @@ pub type EventTx = UnboundedSender<(String, SessionEvent)>;
 pub enum SessionEvent {
     Output(Vec<u8>, u64),
     Exited(Option<u32>),
+    Agent(crate::detector::AgentSnapshot),
 }
 
 pub struct Session {
@@ -35,6 +36,9 @@ pub struct Session {
     seq: AtomicU64,
     // M1 单订阅者；M4 多端镜像时改为广播列表
     subscriber: Mutex<Option<EventTx>>,
+    // M7: 输出流识别器 + 最近快照（list/api 上报用）
+    detector: Mutex<crate::detector::Detector>,
+    agent_state: Mutex<Option<crate::detector::AgentSnapshot>>,
 }
 
 impl Session {
@@ -147,12 +151,36 @@ impl SessionManager {
             .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
             .context("openpty")?;
 
+        // 支持带参数的命令（引号感知拆分）；Windows 经 cmd /c 以解析 npm 的 .cmd shim 等
         let mut command = match cmd {
-            Some(c) => CommandBuilder::new(c),
+            Some(c) => {
+                #[cfg(windows)]
+                {
+                    let mut cb = CommandBuilder::new("cmd.exe");
+                    cb.arg("/c");
+                    cb.arg(c);
+                    cb
+                }
+                #[cfg(not(windows))]
+                {
+                    let mut parts = split_command(c);
+                    let mut cb = CommandBuilder::new(
+                        parts.next().unwrap_or_default(),
+                    );
+                    for a in parts {
+                        cb.arg(a);
+                    }
+                    cb
+                }
+            }
             None => default_shell(),
         };
         if let Some(dir) = cwd {
             command.cwd(dir);
+        }
+        // 会话环境变量注入（settings.json env，如代理 —— Codex 等需要外网的 Agent）
+        for (k, v) in &crate::config::load_settings().env {
+            command.env(k, v);
         }
 
         let child = pair.slave.spawn_command(command).context("spawn pty child")?;
@@ -164,7 +192,7 @@ impl SessionManager {
         let cmd_name = cmd.map(str::to_string).unwrap_or_else(default_shell_name);
         let session = Arc::new(Session {
             id: id.clone(),
-            cmd: cmd_name,
+            cmd: cmd_name.clone(),
             started_at: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_secs() as i64)
@@ -175,6 +203,8 @@ impl SessionManager {
             ring: Mutex::new(VecDeque::new()),
             seq: AtomicU64::new(0),
             subscriber: Mutex::new(None),
+            detector: Mutex::new(crate::detector::Detector::new(&cmd_name)),
+            agent_state: Mutex::new(None),
         });
 
         // 子进程退出监听线程：Windows ConPTY 下 conhost 只要读句柄还开着就不会
@@ -202,6 +232,13 @@ impl SessionManager {
             info!(session = %sid_wait, ?exit_code, "session exited");
             // 进程退出后关闭 master：唤醒可能仍阻塞在 read 上的 reader 线程（句柄回收）
             sess.close_pty();
+            // M7：agent 会话标记完成
+            if let Some(snap) = sess.detector.lock().unwrap().mark_exited() {
+                *sess.agent_state.lock().unwrap() = Some(snap.clone());
+                if let Some(tx) = sess.subscriber.lock().unwrap().as_ref() {
+                    let _ = tx.send((sid_wait.clone(), SessionEvent::Agent(snap)));
+                }
+            }
             if let Some(tx) = sess.subscriber.lock().unwrap().as_ref() {
                 let _ = tx.send((sid_wait, SessionEvent::Exited(exit_code)));
             }
@@ -220,6 +257,13 @@ impl SessionManager {
                         let chunk = buf[..n].to_vec();
                         sess.push_ring(&chunk);
                         let seq = sess.seq.fetch_add(1, Ordering::SeqCst) + 1;
+                        // M7：输出流识别 agent 状态，变化即上报
+                        if let Some(snap) = sess.detector.lock().unwrap().feed(&chunk) {
+                            *sess.agent_state.lock().unwrap() = Some(snap.clone());
+                            if let Some(tx) = sess.subscriber.lock().unwrap().as_ref() {
+                                let _ = tx.send((sid.clone(), SessionEvent::Agent(snap)));
+                            }
+                        }
                         if let Some(tx) = sess.subscriber.lock().unwrap().as_ref() {
                             let _ = tx.send((sid.clone(), SessionEvent::Output(chunk, seq)));
                         }
@@ -253,10 +297,21 @@ impl SessionManager {
             .lock()
             .unwrap()
             .values()
-            .map(|s| crate::protocol::SessionInfo {
-                id: s.id.clone(),
-                cmd: s.cmd.clone(),
-                started_at: s.started_at,
+            .map(|s| {
+                let snap = s.agent_state.lock().unwrap().clone();
+                crate::protocol::SessionInfo {
+                    id: s.id.clone(),
+                    cmd: s.cmd.clone(),
+                    started_at: s.started_at,
+                    agent: snap.as_ref().map(|x| x.agent.clone()),
+                    agent_status: snap.as_ref().map(|x| match &x.status {
+                        crate::detector::AgentStatus::Starting => "starting".to_string(),
+                        crate::detector::AgentStatus::Working => "working".to_string(),
+                        crate::detector::AgentStatus::Error => "error".to_string(),
+                        crate::detector::AgentStatus::Finished => "finished".to_string(),
+                    }),
+                    agent_detail: snap.as_ref().map(|x| x.detail.clone()),
+                }
             })
             .collect()
     }
@@ -353,4 +408,27 @@ fn interrupt_foreground(root: u32) {
         }
         info!(root, killed, total_descendants = doomed.len(), "interrupt: terminated foreground children");
     }
+}
+
+/// 引号感知的命令拆分（unix 用）：`codex exec "fix it"` → [codex, exec, "fix it"]
+#[cfg(not(windows))]
+fn split_command(s: &str) -> impl Iterator<Item = String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut in_quote = false;
+    for ch in s.chars() {
+        match ch {
+            '"' => in_quote = !in_quote,
+            c if c.is_whitespace() && !in_quote => {
+                if !cur.is_empty() {
+                    out.push(std::mem::take(&mut cur));
+                }
+            }
+            c => cur.push(c),
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out.into_iter()
 }

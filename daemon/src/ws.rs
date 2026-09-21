@@ -207,6 +207,17 @@ async fn handle_socket_inner(mut socket: WebSocket, state: AppState) -> anyhow::
                         state.sessions.remove(&sid);
                         DaemonMsg::SessionExited { session_id: sid.clone(), exit_code: code }
                     }
+                    SessionEvent::Agent(snap) => DaemonMsg::AgentStatus {
+                        session_id: sid.clone(),
+                        agent: snap.agent,
+                        status: match snap.status {
+                            crate::detector::AgentStatus::Starting => "starting".into(),
+                            crate::detector::AgentStatus::Working => "working".into(),
+                            crate::detector::AgentStatus::Error => "error".into(),
+                            crate::detector::AgentStatus::Finished => "finished".into(),
+                        },
+                        detail: snap.detail,
+                    },
                 };
                 if sink.send(Message::Text(serde_json::to_string(&msg)?.into())).await.is_err() {
                     break;

@@ -140,6 +140,17 @@ async fn connect_and_run(
                         state.sessions.remove(&sid);
                         DaemonMsg::SessionExited { session_id: sid, exit_code: code }
                     }
+                    SessionEvent::Agent(snap) => DaemonMsg::AgentStatus {
+                        session_id: sid.clone(),
+                        agent: snap.agent,
+                        status: match snap.status {
+                            crate::detector::AgentStatus::Starting => "starting".into(),
+                            crate::detector::AgentStatus::Working => "working".into(),
+                            crate::detector::AgentStatus::Error => "error".into(),
+                            crate::detector::AgentStatus::Finished => "finished".into(),
+                        },
+                        detail: snap.detail,
+                    },
                 };
                 let frame = serde_json::to_string(&msg)?;
                 let wire = match &crypto {

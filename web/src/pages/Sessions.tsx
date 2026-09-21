@@ -78,7 +78,14 @@ export default function SessionsPage() {
                 <div className="col-time">{timeAgo(s.startedAt)}</div>
                 <div className="col-dur mono">{duration(s.startedAt)}</div>
                 <div className="col-state">
-                  <span className="pill on">运行中</span>
+                  {s.agentStatus ? (
+                    <span className={`ai-pill ai-${s.agentStatus}`} title={s.agentDetail ?? ''}>
+                      <span className="ai-dot" />
+                      {{ starting: '启动中', working: '处理中', error: '出错', finished: '已完成' }[s.agentStatus] ?? s.agentStatus}
+                    </span>
+                  ) : (
+                    <span className="pill on">运行中</span>
+                  )}
                 </div>
                 <div className="col-act">
                   <button className="mini-btn accent" onClick={() => location.assign('?local=1')}>

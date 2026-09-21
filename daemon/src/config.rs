@@ -78,6 +78,9 @@ pub struct Settings {
     /// 当前选择的中继地址（None = 保持断开）
     #[serde(default)]
     pub active: Option<String>,
+    /// 会话环境变量注入（如 HTTP_PROXY/HTTPS_PROXY，供 Codex 等需要代理的 Agent 使用）
+    #[serde(default)]
+    pub env: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

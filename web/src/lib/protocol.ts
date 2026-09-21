@@ -14,6 +14,9 @@ export interface SessionInfo {
   id: string;
   cmd: string;
   startedAt: number;
+  agent?: string;
+  agentStatus?: string;
+  agentDetail?: string;
 }
 
 export type DaemonMsg =
@@ -27,6 +30,7 @@ export type DaemonMsg =
   | { t: 'session.killed'; reqId: number; sessionId: string }
   | { t: 'output'; sessionId: string; seq: number; data: string }
   | { t: 'snapshot'; sessionId: string; seq: number; data: string }
+  | { t: 'agent.status'; sessionId: string; agent: string; status: string; detail: string }
   | { t: 'session.exited'; sessionId: string; exitCode: number | null }
   | { t: 'error'; reqId?: number; code: string; msg: string };
 

@@ -15,6 +15,7 @@ export interface DaemonHandlers {
   onPresence: (deviceId: string, online: boolean) => void;
   onSnapshot: (sessionId: string, data: Uint8Array, seq: number) => void;
   onOutput: (sessionId: string, data: Uint8Array, seq: number) => void;
+  onAgentStatus: (sessionId: string, agent: string, status: string, detail: string) => void;
   onExited: (sessionId: string, exitCode: number | null) => void;
   onError: (code: string, msg: string) => void;
 }
@@ -124,6 +125,9 @@ export class DaemonConnection {
         return;
       case 'output':
         this.h.onOutput(m.sessionId, b64decode(m.data), m.seq);
+        return;
+      case 'agent.status':
+        this.h.onAgentStatus(m.sessionId, m.agent, m.status, m.detail);
         return;
       case 'session.exited':
         this.h.onExited(m.sessionId, m.exitCode);

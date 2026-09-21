@@ -66,6 +66,13 @@ pub enum DaemonMsg {
     Snapshot { session_id: String, seq: u64, data: String },
     #[serde(rename = "session.exited")]
     SessionExited { session_id: String, exit_code: Option<u32> },
+    #[serde(rename = "agent.status")]
+    AgentStatus {
+        session_id: String,
+        agent: String,
+        status: String,
+        detail: String,
+    },
     #[serde(rename = "error")]
     Error { req_id: Option<u64>, code: String, msg: String },
 }
@@ -76,6 +83,9 @@ pub struct SessionInfo {
     pub id: String,
     pub cmd: String,
     pub started_at: i64,
+    pub agent: Option<String>,
+    pub agent_status: Option<String>,
+    pub agent_detail: Option<String>,
 }
 
 #[cfg(test)]
@@ -90,7 +100,7 @@ mod tests {
         assert!(j.contains(r#""sessionId":"s_x""#), "camelCase: {j}");
         assert!(j.contains(r#""t":"session.killed""#), "type tag: {j}");
 
-        let info = SessionInfo { id: "s_1".into(), cmd: "powershell".into(), started_at: 100 };
+        let info = SessionInfo { id: "s_1".into(), cmd: "powershell".into(), started_at: 100, agent: None, agent_status: None, agent_detail: None };
         let j = serde_json::to_string(&info).unwrap();
         assert!(j.contains(r#""startedAt":100"#), "info camelCase: {j}");
     }

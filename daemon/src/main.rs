@@ -3,6 +3,7 @@
 // 中继连接三种来源：CLI --relay（当次有效）> 面板/设置 settings.json（持久，重启自动恢复）。
 
 mod config;
+mod detector;
 mod crypto;
 mod protocol;
 mod relay_client;

@@ -92,6 +92,8 @@ export default function TerminalApp() {
   const pendingRef = useRef<Map<string, Uint8Array[]>>(new Map());
   // 按 session 的输出序号（防中继重放/乱序注入；快照重置基线）
   const lastSeqRef = useRef<Map<string, number>>(new Map());
+  // M7: agent 状态（识别 Codex 等会话的运行状态）
+  const [agentSnap, setAgentSnap] = useState<{ sid: string; agent: string; status: string; detail: string } | null>(null);
 
   const t = useMemo(() => target(), []);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -304,7 +306,11 @@ export default function TerminalApp() {
         }
         entry.term.write(data);
       },
+      onAgentStatus: (sid, agent, status, detail) => {
+        setAgentSnap({ sid, agent, status, detail });
+      },
       onExited: (sid) => {
+        setAgentSnap((cur) => (cur?.sid === sid ? { ...cur, status: 'finished', detail: 'process exited' } : cur));
         pendingRef.current.delete(sid);
         const entry = termsRef.current.get(sid);
         if (entry) entry.ended = true;
@@ -624,6 +630,14 @@ export default function TerminalApp() {
           </button>
 
           <div className="tabs-actions">
+            {agentSnap && agentSnap.sid === active && (
+              <span className={`ai-pill ai-${agentSnap.status}`} title={agentSnap.detail}>
+                <span className="ai-dot" />
+                {agentSnap.agent === 'codex' ? 'Codex' : agentSnap.agent}
+                {' · '}
+                {{ starting: '启动中', working: '处理中', error: '出错', finished: '已完成' }[agentSnap.status] ?? agentSnap.status}
+              </span>
+            )}
             <button
               className={`mode-pill ${takeover ? 'take' : 'obs'}`}
               title={takeover ? '接管中：键盘输入直接进入终端' : '观察中：输入被拦截，点击切换为接管'}
