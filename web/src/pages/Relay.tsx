@@ -3,6 +3,7 @@
 // 地区与带宽需中继协议扩展，暂显示占位。
 
 import { useState } from 'react';
+import { localApi } from '../lib/local';
 import { relayHttpBase } from '../lib/target';
 import type { LocalInfo } from './types';
 
@@ -34,7 +35,7 @@ export default function RelayPage({ local, refresh }: Props) {
   const name = local.relayName || '未命名中继';
 
   const post = (path: string, body: unknown) =>
-    fetch(path, {
+    fetch(localApi(path), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

@@ -1,6 +1,7 @@
 // 概览页：状态统计 + 快捷操作 + 手机连接指引
 
 import { copyText } from '../lib/clipboard';
+import { localApi } from '../lib/local';
 import { usePoll } from '../lib/usePoll';
 import { fetchDevices, relayHttpBase } from '../lib/target';
 import type { DeviceEntry, LocalInfo, SessionRow } from './types';
@@ -21,7 +22,7 @@ export default function OverviewPage({ local }: { local: LocalInfo }) {
     local.relayUrl,
   );
   const [sessions] = usePoll<{ sessions: SessionRow[] }>(
-    () => fetch('/api/sessions').then((r) => (r.ok ? r.json() : Promise.reject())),
+    () => fetch(localApi('/api/sessions')).then((r) => (r.ok ? r.json() : Promise.reject())),
     5000,
     { sessions: [] },
   );

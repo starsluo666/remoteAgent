@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { paramsOf } from './lib/target';
+import { LOCAL_BASE } from './lib/local';
 
 export interface SavedConn {
   url: string; // 完整配对 href（含 query），重连直接跳转
@@ -72,6 +73,11 @@ function relayApiBase(relay: string | null): string {
   return relay.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://').replace(/\/ws$/, '');
 }
 
+/** 响应是否为成功的 JSON（中继静态站对未知 API 路径会回落 text/html） */
+function respOkJson(status: number, contentType: string): boolean {
+  return status >= 200 && status < 300 && contentType.includes('json');
+}
+
 export function buildHref(f: PairFields): string {
   const q = new URLSearchParams();
   if (f.relay) q.set('relay', f.relay);
@@ -94,13 +100,23 @@ interface DeviceEntry {
   online: boolean;
 }
 
-export default function Connect({ modal = false, onClose }: { modal?: boolean; onClose?: () => void }) {
+export default function Connect({
+  modal = false,
+  onClose,
+  defaultRelay,
+}: {
+  modal?: boolean;
+  onClose?: () => void;
+  /** 本机面板弹出时带入当前中继，免去手输 */
+  defaultRelay?: string;
+}) {
   const [paste, setPaste] = useState('');
-  const [relay, setRelay] = useState('');
+  const [relay, setRelay] = useState(defaultRelay ?? '');
   const [token, setToken] = useState('');
   const [device, setDevice] = useState<string | null>(null);
   const [devices, setDevices] = useState<DeviceEntry[] | null>(null);
   const [browsing, setBrowsing] = useState(false);
+  const [watching, setWatching] = useState(false); // 空列表时持续轮询，设备上线自动出现
   const [browseError, setBrowseError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recents, setRecents] = useState<SavedConn[]>([]);
@@ -108,6 +124,25 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
   useEffect(() => {
     setRecents(loadConns());
   }, []);
+
+  // 等待设备上线：每 3 秒静默刷新列表（硬错误不打断，下一轮继续）
+  useEffect(() => {
+    if (!watching) return;
+    const base = relayApiBase(normalizeRelay(relay));
+    const id = setInterval(() => {
+      fetch(`${base}/api/devices`)
+        .then(async (r) => {
+          const ct = r.headers.get('content-type') ?? '';
+          if (!respOkJson(r.status, ct)) return;
+          const list = (await r.json()) as DeviceEntry[];
+          setDevices(list);
+          if (list.length > 0) setBrowseError(null);
+        })
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watching, relay]);
 
   // 粘贴即解析：识别出配对链接后自动选中设备并填入令牌
   const onPaste = (text: string) => {
@@ -121,8 +156,12 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
     }
   };
 
-  // 浏览中继设备列表（relay 留空 = 当前站点）
+  // 浏览中继设备列表（浏览器部署时 relay 留空 = 当前站点；桌面壳必须显式填写）
   const browse = async () => {
+    if (LOCAL_BASE && !relay.trim()) {
+      setBrowseError('请输入中继地址（例如 relay.example.com）');
+      return;
+    }
     setBrowsing(true);
     setBrowseError(null);
     const base = relayApiBase(normalizeRelay(relay));
@@ -132,9 +171,10 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
       if (!resp.ok || !ct.includes('json')) throw new Error('not relay');
       const list = (await resp.json()) as DeviceEntry[];
       setDevices(list);
-      if (list.length === 0) setBrowseError('该中继上暂无在线设备');
+      setWatching(true);
     } catch {
       setDevices([]);
+      setWatching(false);
       setBrowseError('无法获取设备列表——请检查中继地址是否正确');
     } finally {
       setBrowsing(false);
@@ -191,6 +231,7 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
               setRelay(e.target.value);
               setDevices(null); // 换中继后清空旧列表
               setDevice(null);
+              setWatching(false);
             }}
             placeholder="relay.example.com"
             spellCheck={false}
@@ -218,6 +259,12 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
               {device === d.deviceId && <span className="pick-check">✓</span>}
             </div>
           ))}
+        </div>
+      )}
+      {devices && devices.length === 0 && !browseError && (
+        <div className="browse-hint">
+          <span className="pulse-dot" />
+          <span>该中继上暂无在线设备 —— 设备上线后将自动出现在这里</span>
         </div>
       )}
       {browseError && <div className="browse-error">{browseError}</div>}

@@ -8,7 +8,9 @@ import SessionsPage from './pages/Sessions';
 import RelayPage from './pages/Relay';
 import SettingsPage from './pages/Settings';
 import HelpPage from './pages/Help';
+import Connect from './Connect';
 import { usePoll } from './lib/usePoll';
+import { localApi } from './lib/local';
 import type { LocalInfo } from './pages/types';
 
 const PAGES = ['overview', 'devices', 'sessions', 'relay', 'settings', 'help'] as const;
@@ -71,8 +73,9 @@ function NavGroup({ title, items, page, navigate }: {
 
 export default function Shell() {
   const [page, navigate] = useHashRoute();
+  const [connectOpen, setConnectOpen] = useState(false);
   const [local, refreshLocal] = usePoll<LocalInfo>(
-    () => fetch('/api/local').then((r) => (r.ok ? r.json() : Promise.reject())),
+    () => fetch(localApi('/api/local')).then((r) => (r.ok ? r.json() : Promise.reject())),
     5000,
     {
       deviceId: '',
@@ -108,6 +111,11 @@ export default function Shell() {
 
           <NavGroup title="主导航" items={MAIN_NAV} page={page} navigate={navigate} />
 
+          <button className="nav-item connect-out" onClick={() => setConnectOpen(true)}>
+            <NavIconConnect />
+            <span>连接其他设备</span>
+          </button>
+
           <div className="nav-spacer" />
 
           <NavGroup title="次要导航" items={SUB_NAV} page={page} navigate={navigate} />
@@ -127,11 +135,23 @@ export default function Shell() {
           {page === 'help' && <HelpPage />}
         </main>
       </div>
+
+      {connectOpen && (
+        <Connect modal onClose={() => setConnectOpen(false)} defaultRelay={local.relayUrl ?? ''} />
+      )}
     </div>
   );
 }
 
 /* ── 导航图标 ─────────────────────────── */
+function NavIconConnect() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 8.5v7M8.5 12h7" />
+    </svg>
+  );
+}
 function NavIconGrid() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

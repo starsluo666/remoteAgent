@@ -97,6 +97,7 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state)
         .fallback_service(ServeDir::new(web_dist))
         .layer(axum::middleware::from_fn(guard_local_host))
+        .layer(axum::middleware::from_fn(cors_tauri))
         .layer(axum::middleware::from_fn(set_cache_headers));
 
     let addr = "127.0.0.1:9800";
@@ -140,6 +141,43 @@ async fn guard_local_host(
     } else {
         (axum::http::StatusCode::FORBIDDEN, "host not allowed").into_response()
     }
+}
+
+/// Tauri 桌面壳（tauri.localhost 源）跨源访问本机 API 的 CORS 放行。
+/// 仅白名单两个源：网页无法伪造 Origin 头，而 /api/local 含 accessToken，
+/// 不可对任意源开放（Host 校验之外的第二道针对性门槛）。
+async fn cors_tauri(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    const ALLOWED: [&str; 2] = ["http://tauri.localhost", "https://tauri.localhost"];
+    let origin = req
+        .headers()
+        .get(axum::http::header::ORIGIN)
+        .and_then(|v| v.to_str().ok())
+        .filter(|o| ALLOWED.contains(o))
+        .map(str::to_owned);
+    // JSON POST 会先触发预检
+    if req.method() == axum::http::Method::OPTIONS {
+        if let Some(o) = &origin {
+            return axum::http::Response::builder()
+                .status(axum::http::StatusCode::NO_CONTENT)
+                .header("Access-Control-Allow-Origin", o)
+                .header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                .header("Access-Control-Allow-Headers", "Content-Type")
+                .body(axum::body::Body::empty())
+                .unwrap()
+                .into();
+        }
+    }
+    let mut res = next.run(req).await;
+    if let Some(o) = origin {
+        if let Ok(v) = o.parse() {
+            res.headers_mut()
+                .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, v);
+        }
+    }
+    res
 }
 
 /// 本地面板信息（仅 127.0.0.1）：设备身份 + 中继状态（含 viewers / 配置列表）

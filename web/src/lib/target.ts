@@ -4,6 +4,7 @@
 // - 无参数 → null（本机桌面应用 / 连接页）
 
 import type { HelloFields } from './daemon';
+import { LOCAL_WS } from './local';
 
 export interface Target {
   url: string;
@@ -45,7 +46,8 @@ export function target(): Target | null {
   if (q.get('local') === '1') {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     return {
-      url: `${proto}://${location.host}/ws`,
+      // 桌面壳（tauri.localhost）下用绝对地址连本机 daemon
+      url: LOCAL_WS || `${proto}://${location.host}/ws`,
       hello: { deviceId: 'local-browser' },
       mode: 'local',
     };

@@ -1,5 +1,6 @@
 // Sessions 页：会话监控表（ID / Agent / 状态 / 时长 / 操作）
 
+import { localApi } from '../lib/local';
 import { usePoll } from '../lib/usePoll';
 import type { SessionRow } from './types';
 
@@ -31,7 +32,7 @@ function agentOf(cmd: string): { label: string; cls: string } {
 
 export default function SessionsPage() {
   const [data] = usePoll<{ sessions: SessionRow[] }>(
-    () => fetch('/api/sessions').then((r) => (r.ok ? r.json() : Promise.reject())),
+    () => fetch(localApi('/api/sessions')).then((r) => (r.ok ? r.json() : Promise.reject())),
     3000,
     { sessions: [] },
   );

@@ -9,6 +9,7 @@ import Connect from './Connect';
 import Shell from './Shell';
 import LandingHero from './LandingHero';
 import { target } from './lib/target';
+import { localApi } from './lib/local';
 import './App.css';
 
 /** 无参数落地：探测本机 daemon（JSON 响应判定）→ 桌面应用；否则 落地页 → 连接页 */
@@ -16,7 +17,7 @@ function Landing() {
   const [mode, setMode] = useState<'checking' | 'local' | 'relay'>('checking');
   const [entered, setEntered] = useState(false);
   useEffect(() => {
-    fetch('/api/local')
+    fetch(localApi('/api/local'))
       .then((r) => {
         // 中继静态托管的未知路径会回落到 index.html（text/html），只有 JSON 才算 daemon
         const ct = r.headers.get('content-type') ?? '';

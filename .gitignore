@@ -36,3 +36,4 @@ desktop-tauri/src-tauri/gen/
 desktop-tauri/node_modules/
 desktop-tauri/app-icon.png
 desktop-tauri/src-tauri/icons/
+desktop-tauri/src-tauri/binaries/
