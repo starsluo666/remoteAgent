@@ -102,12 +102,36 @@ export default function TerminalApp() {
   const [toast, setToast] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const savedConnRef = useRef(false);
+  // 观察/接管：观察模式拦截键盘输入（防误触打断 AI）；触屏设备默认观察
+  const isTouch = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  const [takeover, setTakeover] = useState(!isTouch);
+  const takeoverRef = useRef(!isTouch);
+  const setMode = (v: boolean) => {
+    takeoverRef.current = v;
+    setTakeover(v);
+  };
+  const [mobileInput, setMobileInput] = useState('');
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 2400);
   }, []);
+
+  // 向当前会话发送原始字节（暂停 Ctrl+C / Esc / 移动输入条等）
+  const sendRaw = useCallback((bytes: string) => {
+    const conn = connRef.current;
+    const sid = activeRef.current;
+    if (!conn || !sid) return;
+    conn.send({ t: 'input', sessionId: sid, data: b64encode(bytes) });
+  }, []);
+
+  const sendMobileLine = useCallback(() => {
+    const line = mobileInput;
+    if (!line) return;
+    sendRaw(line + '\r');
+    setMobileInput('');
+  }, [mobileInput, sendRaw]);
 
   const refetchSessions = useCallback(async (conn: DaemonConnection) => {
     const m = await conn.request({ t: 'session.list' });
@@ -343,6 +367,8 @@ export default function TerminalApp() {
           for (const chunk of pending) term.write(chunk);
         }
         term.onData((d) => {
+          // 观察模式：只看不发（防误触打断 AI；接管由模式开关显式开启）
+          if (!takeoverRef.current) return;
           const conn = connRef.current;
           if (conn && activeRef.current === sid && !entry.ended) {
             conn.send({ t: 'input', sessionId: sid, data: b64encode(d) });
@@ -545,6 +571,27 @@ export default function TerminalApp() {
           >
             <IconPlus />
           </button>
+
+          <div className="tabs-actions">
+            <button
+              className={`mode-pill ${takeover ? 'take' : 'obs'}`}
+              title={takeover ? '接管中：键盘输入直接进入终端' : '观察中：输入被拦截，点击切换为接管'}
+              onClick={() => setMode(!takeover)}
+            >
+              {takeover ? '⌨ 接管中' : '👁 观察中'}
+            </button>
+            <button
+              className="pause-btn"
+              title="暂停 AI / 中断当前命令（发送 Ctrl+C）"
+              onClick={() => {
+                sendRaw('\x03');
+                showToast('已发送 Ctrl+C');
+              }}
+              disabled={!online}
+            >
+              ⏸ 暂停
+            </button>
+          </div>
         </nav>
 
         <div className="term-wrap" ref={wrapRef}>
@@ -585,6 +632,47 @@ export default function TerminalApp() {
                   新建会话
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* 移动端操作栏：模式切换 / 暂停 / 特殊键 / 输入条（触屏设备显示） */}
+          {isTouch && (
+            <div className="mobile-bar">
+              <button
+                className={`mb-mode ${takeover ? 'take' : 'obs'}`}
+                onClick={() => setMode(!takeover)}
+              >
+                {takeover ? '⌨ 接管' : '👁 观察'}
+              </button>
+              <button className="mb-key danger" title="Ctrl+C" onClick={() => sendRaw('\x03')}>
+                ⏸
+              </button>
+              <button className="mb-key" title="Esc" onClick={() => sendRaw('\x1b')}>
+                ⎋
+              </button>
+              <button className="mb-key" title="Tab" onClick={() => sendRaw('\t')}>
+                ⇥
+              </button>
+              <button className="mb-key" title="↑" onClick={() => sendRaw('\x1b[A')}>
+                ↑
+              </button>
+              <button className="mb-key" title="↓" onClick={() => sendRaw('\x1b[B')}>
+                ↓
+              </button>
+              <input
+                className="mb-input"
+                value={mobileInput}
+                onChange={(e) => setMobileInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendMobileLine();
+                  }
+                }}
+                placeholder={takeover ? '输入命令，回车发送' : '观察模式：先点左侧切换接管'}
+                disabled={!takeover}
+                enterKeyHint="send"
+              />
             </div>
           )}
         </div>

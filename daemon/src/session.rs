@@ -39,6 +39,40 @@ pub struct Session {
 
 impl Session {
     pub fn write_input(&self, bytes: &[u8]) -> Result<()> {
+        // Windows ConPTY：\x03 写入 master 不会触发 CTRL_C_EVENT（conhost 在
+        // ConPTY 模式下不走 processed input；AttachConsole+GenerateConsoleCtrlEvent
+        // 实测同样无效）。可行的中断方案 = 终止 shell 的后代进程树（ping/node 等
+        // 前台命令），同时仍写入 \x03 兼容自带输入处理的 CLI（如交互式确认行）。
+        #[cfg(windows)]
+        if bytes.contains(&0x03) {
+            let mut plain: Vec<u8> = Vec::with_capacity(bytes.len());
+            let mut interrupted = false;
+            let pid = self.child.lock().unwrap().process_id().unwrap_or(0);
+            for &b in bytes {
+                if b == 0x03 {
+                    if !plain.is_empty() {
+                        self.write_raw(&plain)?;
+                        plain.clear();
+                    }
+                    if !interrupted && pid != 0 {
+                        interrupt_foreground(pid);
+                        interrupted = true;
+                    }
+                } else {
+                    plain.push(b);
+                }
+            }
+            if !plain.is_empty() {
+                self.write_raw(&plain)?;
+            }
+            // \x03 也照常写入：shell 无前台子进程时由 readline 自行取消当前行
+            self.write_raw(&[0x03])?;
+            return Ok(());
+        }
+        self.write_raw(bytes)
+    }
+
+    fn write_raw(&self, bytes: &[u8]) -> Result<()> {
         self.writer
             .lock()
             .unwrap()
@@ -248,5 +282,75 @@ fn default_shell_name() -> String {
         "powershell".into()
     } else {
         std::env::var("SHELL").unwrap_or_else(|_| "bash".into())
+    }
+}
+
+/// 中断 shell 的前台命令（Windows）：终止 root 的全部后代进程。
+/// 依赖 toolhelp32 快照枚举父子关系，递归收集后代后 TerminateProcess。
+/// shell 自身（root）不受影响 —— 杀完后它回到提示符等待下一条命令。
+#[cfg(windows)]
+fn interrupt_foreground(root: u32) {
+    #[repr(C)]
+    struct Entry {
+        size: u32,
+        usage: u32,
+        pid: u32,
+        heap_base: isize,
+        module_id: u32,
+        threads: u32,
+        parent_pid: u32,
+        pri: i32,
+        flags: u32,
+        exe: [u16; 260],
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateToolhelp32Snapshot(flags: u32, pid: u32) -> isize;
+        fn Process32FirstW(snap: isize, entry: *mut Entry) -> i32;
+        fn Process32NextW(snap: isize, entry: *mut Entry) -> i32;
+        fn CloseHandle(h: isize) -> i32;
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> isize;
+        fn TerminateProcess(h: isize, code: u32) -> i32;
+    }
+    const TH32CS_SNAPPROCESS: u32 = 2;
+    const PROCESS_TERMINATE: u32 = 1;
+
+    unsafe {
+        let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snap == -1 {
+            warn!("CreateToolhelp32Snapshot failed");
+            return;
+        }
+        let mut procs: Vec<(u32, u32)> = Vec::new(); // (pid, parent_pid)
+        let mut e: Entry = std::mem::zeroed();
+        e.size = std::mem::size_of::<Entry>() as u32;
+        if Process32FirstW(snap, &mut e) != 0 {
+            loop {
+                procs.push((e.pid, e.parent_pid));
+                if Process32NextW(snap, &mut e) == 0 {
+                    break;
+                }
+            }
+        }
+        CloseHandle(snap);
+
+        let mut doomed: Vec<u32> = Vec::new();
+        let mut frontier = vec![root];
+        while let Some(p) = frontier.pop() {
+            for &(pid, parent) in &procs {
+                if parent == p && pid != root && !doomed.contains(&pid) {
+                    doomed.push(pid);
+                    frontier.push(pid);
+                }
+            }
+        }
+        let mut killed = 0;
+        for pid in &doomed {
+            let h = OpenProcess(PROCESS_TERMINATE, 0, *pid);
+            if h != 0 && TerminateProcess(h, 1) != 0 {
+                killed += 1;
+            }
+        }
+        info!(root, killed, total_descendants = doomed.len(), "interrupt: terminated foreground children");
     }
 }
