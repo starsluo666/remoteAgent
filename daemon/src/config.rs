@@ -67,10 +67,50 @@ pub fn rotate_access_token() -> Result<Identity> {
     Ok(id)
 }
 
-/// 运行设置：界面里配置的中继地址，重启后自动恢复连接
+/// 运行设置：界面里配置的中继列表，重启后自动恢复连接（active 指向恢复目标）
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Settings {
+    /// 旧字段兼容：单中继地址（读取时合并进 relays 并设为 active）
     pub relay_url: Option<String>,
+    /// 多中继：name 仅本机显示用
+    #[serde(default)]
+    pub relays: Vec<RelayConfig>,
+    /// 当前选择的中继地址（None = 保持断开）
+    #[serde(default)]
+    pub active: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelayConfig {
+    pub name: String,
+    pub url: String,
+}
+
+impl Settings {
+    /// 归一化：旧 relay_url 合并为无名中继并视为 active；去重
+    pub fn normalized(mut self) -> Self {
+        if let Some(url) = self.relay_url.take() {
+            if !self.relays.iter().any(|r| r.url == url) {
+                self.relays.insert(
+                    0,
+                    RelayConfig {
+                        name: "默认中继".into(),
+                        url: url.clone(),
+                    },
+                );
+            }
+            if self.active.is_none() {
+                self.active = Some(url);
+            }
+        }
+        // active 必须指向列表中的地址
+        if let Some(a) = &self.active {
+            if !self.relays.iter().any(|r| &r.url == a) {
+                self.active = None;
+            }
+        }
+        self
+    }
 }
 
 fn settings_path() -> Result<PathBuf> {
@@ -86,8 +126,9 @@ pub fn load_settings() -> Settings {
     settings_path()
         .ok()
         .and_then(|p| fs::read_to_string(p).ok())
-        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .and_then(|raw| serde_json::from_str::<Settings>(&raw).ok())
         .unwrap_or_default()
+        .normalized()
 }
 
 pub fn save_settings(s: &Settings) -> Result<()> {

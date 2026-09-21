@@ -34,8 +34,18 @@ pub struct LocalShared {
 #[derive(Clone, Default, serde::Serialize)]
 pub struct RelayState {
     pub url: Option<String>,
+    pub name: String,
     pub online: bool,
     pub note: String,
+    /// 本次注册成功时刻（unix 秒；0 = 未连接）
+    pub connected_at: i64,
+}
+
+fn now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 impl LocalShared {
@@ -51,12 +61,22 @@ impl LocalShared {
         self.relay.lock().unwrap().clone()
     }
 
-    pub fn set_relay_url(&self, url: Option<String>) {
-        self.relay.lock().unwrap().url = url;
+    pub fn set_relay_target(&self, name: &str, url: Option<String>) {
+        let mut r = self.relay.lock().unwrap();
+        r.name = name.to_string();
+        r.url = url;
+        if r.url.is_none() {
+            r.online = false;
+            r.connected_at = 0;
+            r.note = "未连接".into();
+        }
     }
 
     pub fn set_relay_note(&self, online: bool, note: impl Into<String>) {
         let mut r = self.relay.lock().unwrap();
+        if online && !r.online {
+            r.connected_at = now_secs();
+        }
         r.online = online;
         r.note = note.into();
     }
@@ -73,8 +93,9 @@ impl RelayCtl {
     }
 
     /// 启动（或替换）中继任务；旧任务（若有）先被停止
-    pub fn start(&mut self, url: String, identity: crate::config::Identity, state: AppState) {
+    pub fn start(&mut self, name: &str, url: String, identity: crate::config::Identity, state: AppState) {
         self.stop();
+        state.local.set_relay_target(name, Some(url.clone()));
         let (tx, rx) = tokio::sync::watch::channel(false);
         self.stop_tx = Some(tx);
         tokio::spawn(crate::relay_client::run_relay_mode(url, identity, state, rx));

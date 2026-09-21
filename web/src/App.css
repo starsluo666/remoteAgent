@@ -2348,3 +2348,184 @@ button:disabled {
     white-space: nowrap;
   }
 }
+
+/* ── 中继服务页（对齐设计稿） ───────────── */
+.relay-hero {
+  display: flex;
+  gap: 20px;
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.relay-hero.on {
+  border-color: rgba(16, 185, 129, 0.35);
+}
+.relay-hero.wait {
+  border-color: rgba(245, 181, 68, 0.3);
+}
+
+.relay-hero-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.relay-hero-status {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.dot.big {
+  width: 11px;
+  height: 11px;
+  align-self: center;
+}
+.relay-hero.on .dot.big {
+  background: var(--green);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.85);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+.relay-hero.wait .dot.big {
+  background: var(--amber);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.relay-hero.off .dot.big {
+  background: var(--text-3);
+}
+.rhs-state {
+  font-size: 20px;
+  font-weight: 800;
+}
+.relay-hero.on .rhs-state {
+  color: var(--green);
+}
+.relay-hero.wait .rhs-state {
+  color: var(--amber);
+}
+.relay-hero.off .rhs-state {
+  color: var(--text-2);
+}
+.rhs-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.relay-hero-url {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.lock-ico {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--green);
+}
+.relay-note-line {
+  font-size: 11.5px;
+  color: var(--amber);
+}
+
+.relay-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+}
+.rstat {
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+}
+.rstat-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--text-3);
+}
+.rstat-value {
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+}
+.rstat-value.dim {
+  color: var(--text-3);
+}
+.rstat-value .good {
+  color: var(--green);
+}
+.rstat-foot {
+  font-size: 10px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.relay-hero-side {
+  flex: none;
+  width: 170px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.gauge {
+  width: 130px;
+  height: 130px;
+}
+.gauge-num {
+  fill: var(--text);
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--mono);
+}
+.gauge-unit {
+  fill: var(--text-3);
+  font-size: 10px;
+}
+.relay-hero-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.col-url {
+  flex: 1.8;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.security-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: rgba(16, 185, 129, 0.04);
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+@media (max-width: 760px) {
+  .relay-hero {
+    flex-direction: column;
+  }
+  .relay-hero-side {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+}

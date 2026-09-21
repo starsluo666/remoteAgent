@@ -74,7 +74,18 @@ export default function Shell() {
   const [local, refreshLocal] = usePoll<LocalInfo>(
     () => fetch('/api/local').then((r) => (r.ok ? r.json() : Promise.reject())),
     5000,
-    { deviceId: '', accessToken: '', relayUrl: null, relayOnline: false, relayNote: '读取中…' },
+    {
+      deviceId: '',
+      accessToken: '',
+      relayUrl: null,
+      relayName: '',
+      relayOnline: false,
+      relayNote: '读取中…',
+      relayConnectedAt: 0,
+      relayViewers: null,
+      relays: [],
+      activeRelay: null,
+    },
   );
 
   const relayOk = local.relayOnline;

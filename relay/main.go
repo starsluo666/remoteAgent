@@ -17,6 +17,8 @@ var upgrader = websocket.Upgrader{
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
+	// 与 /api/devices 一致放开 CORS：本机面板跨源测延迟用
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true,"name":"remoteagent-relay","proto":1}`))
 }
