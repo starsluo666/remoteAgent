@@ -10,11 +10,34 @@ body,
 }
 
 body {
-  background: #0c0f14;
-  color: #d6dce5;
+  background: #0a0c10;
+  color: #e8ebf2;
   font-family:
+    'Outfit',
+    'Segoe UI Variable Text',
     'Segoe UI',
     system-ui,
     -apple-system,
     sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(139, 124, 248, 0.35);
+}
+
+/* 细滚动条，融入深色界面 */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
 }

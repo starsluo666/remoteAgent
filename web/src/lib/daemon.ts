@@ -40,6 +40,8 @@ export class DaemonConnection {
 
   connect(): void {
     if (this.disposed) return;
+    // 已有活动连接时跳过，防止重连风暴下开出双 socket
+    if (this.ws && this.ws.readyState !== WebSocket.CLOSED) return;
     this.h.onStatus('connecting');
     const ws = new WebSocket(this.url);
     this.ws = ws;
@@ -60,6 +62,9 @@ export class DaemonConnection {
       }
     };
     ws.onclose = () => {
+      // 只在该 socket 仍是当前 socket 时通知（reconnect() 换新后旧 socket 的关闭不算掉线）
+      if (this.ws !== ws) return;
+      this.pending.clear(); // 悬挂的请求不再有应答，调用方等待被新连接的 bootstrap 取代
       if (!this.disposed) this.h.onStatus('disconnected');
     };
     ws.onerror = () => ws.close();
@@ -145,6 +150,15 @@ export class DaemonConnection {
       this.pending.set(reqId, resolve);
       this.send({ ...msg, reqId });
     });
+  }
+
+  /** 手动重连：静默关闭当前 socket（不触发 disconnected 状态）并立即重连 */
+  reconnect(): void {
+    if (this.disposed) return;
+    const old = this.ws;
+    this.ws = null;
+    old?.close();
+    this.connect();
   }
 
   close(): void {
