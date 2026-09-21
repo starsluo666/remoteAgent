@@ -81,3 +81,17 @@ systemctl restart remoteagent-relay         # 重启（daemon 会自动重连，
 1. `https://域名/health` → OK
 2. 家里启动 daemon（带 `--relay wss://...`），日志出现 `registered at relay`
 3. 打开 `https://域名/?device=<id>&token=<t>`，看到「在线」徽章和终端
+
+## 五、公网必配：relay-key 白名单
+
+任何人连上你的中继都能尝试注册任意 deviceId。配置 `-relay-key`（或环境变量
+`REMOTEAGENT_RELAY_KEY`）后，只有持有正确密钥的 daemon 能注册：
+
+```bash
+# 密钥在家里 daemon 的 ~/.remoteagent/identity.json → relay_key 字段
+# systemd：改 /etc/systemd/system/remoteagent-relay.service 的 -relay-key 参数后
+systemctl daemon-reload && systemctl restart remoteagent-relay
+# 验证：中继日志出现 "relay-key allowlist enabled"
+```
+
+不配置时中继会打印 WARNING —— 本地/内网开发可忽略，公网必须配。

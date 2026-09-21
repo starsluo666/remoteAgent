@@ -5,7 +5,9 @@ Wants=network-online.target
 
 [Service]
 # 绑定 127.0.0.1：只让本机的 Caddy/Nginx 反代访问，不直接暴露公网
-ExecStart=/opt/remoteagent/relay -listen 127.0.0.1:8080 -web /opt/remoteagent/web
+# -relay-key：daemon 注册密钥白名单（公网必配，防伪造 daemon 抢注设备房间）。
+# 与家里 daemon 的 ~/.remoteagent/identity.json 中 relay_key 一致。
+ExecStart=/opt/remoteagent/relay -listen 127.0.0.1:8080 -web /opt/remoteagent/web -relay-key CHANGE_ME_RELAY_KEY
 Restart=always
 RestartSec=3
 
