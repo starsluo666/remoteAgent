@@ -150,7 +150,7 @@ func (h *hub) forward(from *conn, raw []byte) {
 }
 
 // kickClients：daemon 请求断开房间里全部 viewer（未认证超时防抢占）。
-// 房间与 daemon 连接保留，新的合法 viewer 可立即加入。
+// 房间与 daemon 连接保留，新的合法 viewer 可立即加入（同步移除，避免关闭竞态窗口）。
 func (h *hub) kickClients(deviceID string) {
 	h.mu.Lock()
 	r, ok := h.rooms[deviceID]
@@ -163,6 +163,7 @@ func (h *hub) kickClients(deviceID string) {
 	for c := range r.clients {
 		clients = append(clients, c)
 	}
+	r.clients = make(map[*conn]bool) // 立即腾出单 viewer 槽位（关闭是异步的）
 	r.mu.Unlock()
 	for _, c := range clients {
 		c.sendMsg(errPayload("kicked", "viewer kicked by device"))

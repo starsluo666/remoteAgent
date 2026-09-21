@@ -150,3 +150,43 @@ daemon → client:  { "t": "auth.ok",     "pub": "<b64 X25519 daemon_pub>",
 - 加字段：兼容，旧端忽略未知字段。
 - 改字段语义 / 删字段：升 `v`，relay 拒绝旧版本并提示升级。
 - 性能需要时：文本 JSON → 二进制帧（ArrayBuffer + 4 字节头），仅影响 §4，§3 保持 JSON。
+
+## 8. 安全与生命周期补充（M5 安全批次，2026-09）
+
+### 8.1 配对链接格式
+- 推荐 `https://relay/#device=<id>&token=<t>`（**fragment**）：凭据不随 HTTP 请求发给服务器，不进中继/反代访问日志。
+- 兼容旧 query 格式 `?device=&token=`（解析端两者皆收，query 优先）。
+
+### 8.2 viewer 踢除（防单观看者槽位抢占）
+- daemon 检测到 viewer 加入后 **30s** 未完成 E2E 握手 → 向 relay 发控制消息 `{"t":"kick"}`（仅 role=daemon 可发）。
+- relay 收到后断开该房间**全部 client** 连接（回复 `{"t":"error","code":"kicked"}` 后 close）；daemon↔relay 隧道保留。
+- 超时窗口用 interval 检查，客户端持续发垃圾帧无法重置；踢后窗口重新计时 30s。
+
+### 8.3 保活
+- daemon → relay：WS `Ping` 控制帧，每 30s。
+- web 客户端 → daemon（经 relay）：应用层 `{"t":"ping"}`，每 25s。
+- relay：单连接读超时 90s，pong / 任何流量续期。
+
+### 8.4 防护边界
+- relay 单帧上限 1MB（`SetReadLimit`）。
+- daemon 本地服务（127.0.0.1:9800）校验 `Host` 头 ∈ {127.0.0.1:9800, localhost:9800, [::1]:9800}，防 DNS rebinding。
+
+### 8.5 本地 REST API（daemon，仅 127.0.0.1）
+| 端点 | 方法 | 用途 |
+|---|---|---|
+| `/api/local` | GET | 设备身份 + 中继状态（name/url/online/note/connectedAt/viewers）+ 中继配置列表 |
+| `/api/local/relay` | POST | `{url:null}` 断开；`{url:"wss://…"}` 连接（未知地址自动入列表） |
+| `/api/local/relays` | POST | `{action:add\|remove\|rename, name?, url?}` 多中继管理 |
+| `/api/sessions` | GET | 会话列表（id/cmd/startedAt，camelCase） |
+
+- 持久化：`~/.remoteagent/settings.json` `{relays:[{name,url}], active:url|null}`（旧 `relay_url` 字段自动迁移）。
+
+### 8.6 会话确认消息
+- `session.kill` 处理后回 `{"t":"session.killed", reqId, sessionId}`（客户端 await 需要）。
+
+### 8.7 新增错误码
+| code | 含义 | 谁发 |
+|---|---|---|
+| `kicked` | viewer 被 daemon 请离 | relay |
+| `device_busy` | 单观看者槽位被占 | relay |
+| `decrypt_failed` | enc 信封解密失败 | daemon/web |

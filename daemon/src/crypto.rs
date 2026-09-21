@@ -138,3 +138,68 @@ fn decode_pub(b64: &str) -> Result<[u8; 32]> {
     let raw = STANDARD.decode(b64).map_err(|_| anyhow!("bad pub base64"))?;
     raw.try_into().map_err(|_| anyhow!("bad pub length"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// E2E 全链路：握手互验 + 加解密往返 + 篡改检测
+    #[test]
+    fn handshake_and_seal_roundtrip() {
+        let token = "test-access-token";
+        let d = Handshake::start();
+        let c = Handshake::start();
+
+        // client → daemon: proof（pub + HMAC(token, pub)）
+        let proof = c.proof_json(token);
+        let pv: serde_json::Value = serde_json::from_str(&proof).unwrap();
+        let (d2, reply) = Handshake::verify_client(token, pv["pub"].as_str().unwrap(), pv["mac"].as_str().unwrap())
+            .expect("valid proof must verify");
+
+        // 错 token 必须被拒
+        assert!(Handshake::verify_client("wrong", pv["pub"].as_str().unwrap(), pv["mac"].as_str().unwrap()).is_err());
+
+        // daemon → client: auth.ok（pub + mac），client 验证后双方 finish 出同一密钥
+        let rv: serde_json::Value = serde_json::from_str(&reply).unwrap();
+        assert_eq!(rv["t"], "auth.ok");
+        let daemon_pub = rv["pub"].as_str().unwrap().to_string();
+        let daemon_mac = rv["mac"].as_str().unwrap().to_string();
+        c.verify_peer_mac(token, &daemon_pub, &daemon_mac).expect("daemon mac must verify");
+        let dc = d2.finish(&STANDARD.encode(c.public.as_bytes())).unwrap();
+        // 客户端侧按 web 实现（e2e.ts）镜像派生：盐序固定 daemon_pub ‖ client_pub
+        let cc = {
+            let peer = PublicKey::from(decode_pub(&daemon_pub).unwrap());
+            let shared = c.secret.diffie_hellman(&peer);
+            let mut salt = Vec::with_capacity(64);
+            salt.extend_from_slice(peer.as_bytes());
+            salt.extend_from_slice(c.public.as_bytes());
+            let hk = Hkdf::<Sha256>::new(Some(&salt), shared.as_bytes());
+            let mut key = [0u8; 32];
+            hk.expand(HKDF_INFO, &mut key).expect("32 bytes");
+            SessionCrypto { aead: Aes256Gcm::new((&key).into()) }
+        };
+
+        let sealed = dc.seal("hello pty").unwrap();
+        assert_eq!(cc.open(&sealed).unwrap(), "hello pty");
+        assert_eq!(dc.open(&sealed).unwrap(), "hello pty"); // 自身也可解
+
+        // 密文篡改一个字节必须失败（GCM 认证）；JSON 信封为 ASCII，翻转后仍是合法 UTF-8
+        let mut bytes = sealed.into_bytes();
+        let mid = bytes.len() / 2;
+        bytes[mid] ^= 1;
+        let tampered = String::from_utf8(bytes).unwrap();
+        assert!(cc.open(&tampered).is_err());
+    }
+
+    /// 握手派生与往返已由上例覆盖；
+    /// 这里验证 nonce 不重复（重放同一密文两次，第二次内容相同——无 AAD 绑定，属已知限制）
+    #[test]
+    fn nonce_uniqueness() {
+        let d = Handshake::start();
+        let c = Handshake::start();
+        let dc = d.finish(&STANDARD.encode(c.public.as_bytes())).unwrap();
+        let a = dc.seal("x").unwrap();
+        let b = dc.seal("x").unwrap();
+        assert_ne!(a, b, "same plaintext must produce different ciphertext");
+    }
+}

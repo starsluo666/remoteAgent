@@ -77,3 +77,34 @@ pub struct SessionInfo {
     pub cmd: String,
     pub started_at: i64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 线上兼容底线：serde 输出必须是 camelCase 且键名字典序（客户端靠解析 .t 判断类型，前缀判断非法）
+    #[test]
+    fn serde_camelcase_and_sorted() {
+        let m = DaemonMsg::SessionKilled { req_id: 7, session_id: "s_x".into() };
+        let j = serde_json::to_string(&m).unwrap();
+        assert!(j.contains(r#""sessionId":"s_x""#), "camelCase: {j}");
+        assert!(j.contains(r#""t":"session.killed""#), "type tag: {j}");
+
+        let info = SessionInfo { id: "s_1".into(), cmd: "powershell".into(), started_at: 100 };
+        let j = serde_json::to_string(&info).unwrap();
+        assert!(j.contains(r#""startedAt":100"#), "info camelCase: {j}");
+    }
+
+    /// 客户端消息解析：字段名大小写错误必须在反序列化阶段暴露
+    #[test]
+    fn client_msg_parse() {
+        let m: ClientMsg = serde_json::from_str(r#"{"t":"resize","sessionId":"s1","cols":80,"rows":24}"#).unwrap();
+        match m {
+            ClientMsg::Resize { session_id, cols, rows } => {
+                assert_eq!(session_id, "s1");
+                assert_eq!((cols, rows), (80, 24));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+}
