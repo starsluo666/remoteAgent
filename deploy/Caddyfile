@@ -1,0 +1,6 @@
+# RemoteAgent 中继反代配置
+# 换成你的域名；Caddy 会自动申请并续期 Let's Encrypt 证书
+relay.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:8080
+}

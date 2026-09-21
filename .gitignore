@@ -15,3 +15,7 @@ web/dist/
 *.log
 .DS_Store
 Thumbs.db
+
+# 部署产物（二进制与站点文件不入库，配置脚本人库）
+deploy/relay-linux-*
+deploy/web/

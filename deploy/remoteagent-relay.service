@@ -1,0 +1,19 @@
+[Unit]
+Description=RemoteAgent relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# 绑定 127.0.0.1：只让本机的 Caddy/Nginx 反代访问，不直接暴露公网
+ExecStart=/opt/remoteagent/relay -listen 127.0.0.1:8080 -web /opt/remoteagent/web
+Restart=always
+RestartSec=3
+
+# 加固：非 root、私有临时目录
+DynamicUser=yes
+ProtectSystem=strict
+ReadOnlyPaths=/opt/remoteagent
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
