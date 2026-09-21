@@ -66,3 +66,32 @@ pub fn rotate_access_token() -> Result<Identity> {
     fs::write(&path, serde_json::to_string_pretty(&id)?).context("write identity.json")?;
     Ok(id)
 }
+
+/// 运行设置：界面里配置的中继地址，重启后自动恢复连接
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Settings {
+    pub relay_url: Option<String>,
+}
+
+fn settings_path() -> Result<PathBuf> {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .context("no home directory")?;
+    let dir = PathBuf::from(home).join(".remoteagent");
+    fs::create_dir_all(&dir).context("create ~/.remoteagent")?;
+    Ok(dir.join("settings.json"))
+}
+
+pub fn load_settings() -> Settings {
+    settings_path()
+        .ok()
+        .and_then(|p| fs::read_to_string(p).ok())
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_settings(s: &Settings) -> Result<()> {
+    let path = settings_path()?;
+    fs::write(&path, serde_json::to_string_pretty(s)?).context("write settings.json")?;
+    Ok(())
+}

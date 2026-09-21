@@ -1115,3 +1115,95 @@ button:disabled {
   padding: 1px 6px;
   border-radius: 5px;
 }
+
+/* ── 本机面板：中继连接块 ─────────────── */
+.relay-block {
+  margin-top: 4px;
+}
+
+.relay-status {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border-radius: 11px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+.relay-status .dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+}
+.relay-status.on .dot {
+  background: var(--green);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+.relay-status.wait .dot {
+  background: var(--amber);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.relay-status.off .dot {
+  background: var(--text-3);
+}
+.relay-status.on {
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.relay-status-text {
+  flex: 1;
+  min-width: 0;
+}
+.relay-url {
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.relay-note {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.relay-block .relay-row input,
+.relay-block .relay-row .mini-btn {
+  height: 38px;
+}
+.relay-block .relay-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.relay-block .relay-row input:focus {
+  border-color: var(--accent-deep);
+  box-shadow: 0 0 0 3px rgba(139, 124, 248, 0.15);
+}
+
+.mini-btn.danger {
+  color: var(--red);
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.1);
+}
+.mini-btn.danger:hover:not(:disabled) {
+  color: var(--red);
+  filter: brightness(1.2);
+}
+
+.relay-hint {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 7px;
+  line-height: 1.5;
+}

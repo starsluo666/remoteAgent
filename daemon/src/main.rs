@@ -1,6 +1,6 @@
 // RemoteAgent daemon。
-// 本地面板/本地直连始终监听 127.0.0.1:9800（/api/local 身份信息 + /ws + web UI）。
-// --relay <url>：额外从中继出站连接（手机/外网经中继访问），面板不受影响。
+// 本地面板/本地直连始终监听 127.0.0.1:9800（/api/local 身份与中继控制 + /ws + web UI）。
+// 中继连接三种来源：CLI --relay（当次有效）> 面板/设置 settings.json（持久，重启自动恢复）。
 
 mod config;
 mod crypto;
@@ -39,17 +39,21 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // 中继来源：CLI --relay 优先，否则取界面保存的设置（重启自动恢复）
+    let settings = config::load_settings();
+    let relay_start = relay_url.or_else(|| settings.relay_url.clone());
+
     let state = ws::AppState {
         sessions: Arc::new(session::SessionManager::new()),
-        local: Arc::new(ws::LocalInfo {
-            device_id: identity.device_id.clone(),
-            access_token: identity.access_token.clone(),
-            relay_url: relay_url.clone(),
-        }),
+        local: Arc::new(ws::LocalShared::new(
+            identity.device_id.clone(),
+            identity.access_token.clone(),
+        )),
+        identity: Arc::new(identity.clone()),
+        relay: Arc::new(std::sync::Mutex::new(ws::RelayCtl::stopped())),
     };
 
-    // 中继模式：打印配对信息，后台出站连接；本地面板服务器照常常驻
-    if let Some(url) = relay_url {
+    if let Some(url) = relay_start {
         let secure = url.starts_with("wss://");
         let scheme = if secure { "https" } else { "http" };
         let host = url
@@ -60,23 +64,21 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or("relay");
         tracing::info!(device = %identity.device_id, "relay mode");
         tracing::info!(
-            "pair with: {scheme}://{host}/?device={}&token={}",
-            identity.device_id,
-            identity.access_token
+            "relay web: {scheme}://{host}/ （手机端输入该地址 + 设备 ID + 访问令牌连接）"
         );
-        let relay_state = state.clone();
-        let relay_identity = identity.clone();
-        tokio::spawn(relay_client::run_relay_mode(
-            url,
-            relay_identity,
-            relay_state,
-        ));
+        state.local.set_relay_url(Some(url.clone()));
+        state
+            .relay
+            .lock()
+            .unwrap()
+            .start(url, identity, state.clone());
     }
 
-    // 本地面板 + 本地直连：/api/local（身份信息）+ /ws + 托管前端构建产物，仅 127.0.0.1
+    // 本地面板 + 本地直连：/api/local（身份/中继控制）+ /ws + 前端静态资源，仅 127.0.0.1
     let web_dist = concat!(env!("CARGO_MANIFEST_DIR"), "/../web/dist");
     let app = axum::Router::new()
         .route("/api/local", axum::routing::get(local_info))
+        .route("/api/local/relay", axum::routing::post(set_relay))
         .route("/ws", axum::routing::get(ws::handle_ws))
         .with_state(state)
         .fallback_service(ServeDir::new(web_dist));
@@ -88,30 +90,65 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 本地面板信息（仅 127.0.0.1）：设备身份 + 中继配置 + 配对链接
+/// 本地面板信息（仅 127.0.0.1）：设备身份 + 中继状态
 async fn local_info(
     axum::extract::State(state): axum::extract::State<ws::AppState>,
 ) -> axum::Json<serde_json::Value> {
-    let ws::LocalInfo {
-        device_id,
-        access_token,
-        relay_url,
-    } = &*state.local;
-    let pairing_url = relay_url.as_ref().map(|url| {
-        let secure = url.starts_with("wss://");
-        let scheme = if secure { "https" } else { "http" };
-        let host = url
-            .trim_start_matches("ws://")
-            .trim_start_matches("wss://")
-            .split('/')
-            .next()
-            .unwrap_or("relay");
-        format!("{scheme}://{host}/?device={device_id}&token={access_token}")
-    });
+    let relay = state.local.relay_state();
     axum::Json(serde_json::json!({
-        "deviceId": device_id,
-        "accessToken": access_token,
-        "relayUrl": relay_url,
-        "pairingUrl": pairing_url,
+        "deviceId": state.local.device_id,
+        "accessToken": state.local.access_token,
+        "relayUrl": relay.url,
+        "relayOnline": relay.online,
+        "relayNote": relay.note,
     }))
+}
+
+#[derive(serde::Deserialize)]
+struct RelayBody {
+    url: Option<String>,
+}
+
+/// 界面配置中继：url=null 断开；否则连接指定中继（持久化，重启自动恢复）
+async fn set_relay(
+    axum::extract::State(state): axum::extract::State<ws::AppState>,
+    axum::Json(body): axum::Json<RelayBody>,
+) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+    let mut settings = config::load_settings();
+    match body.url.as_deref() {
+        None => {
+            settings.relay_url = None;
+            config::save_settings(&settings)
+                .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            state.relay.lock().unwrap().stop();
+            state.local.set_relay_url(None);
+            state.local.set_relay_note(false, "未连接");
+            tracing::info!("relay disconnected from panel");
+        }
+        Some(url) => {
+            let url = url.trim().to_string();
+            if !url.starts_with("ws://") && !url.starts_with("wss://") {
+                return Err((
+                    axum::http::StatusCode::BAD_REQUEST,
+                    "中继地址需以 ws:// 或 wss:// 开头".into(),
+                ));
+            }
+            settings.relay_url = Some(url.clone());
+            config::save_settings(&settings)
+                .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            state.local.set_relay_url(Some(url.clone()));
+            state.relay.lock().unwrap().start(
+                url,
+                (*state.identity).clone(),
+                state.clone(),
+            );
+            tracing::info!("relay connect requested from panel");
+        }
+    }
+    let relay = state.local.relay_state();
+    Ok(axum::Json(serde_json::json!({
+        "relayUrl": relay.url,
+        "relayOnline": relay.online,
+        "relayNote": relay.note,
+    })))
 }

@@ -17,15 +17,74 @@ use crate::session::{SessionEvent, SessionManager};
 #[derive(Clone)]
 pub struct AppState {
     pub sessions: Arc<SessionManager>,
-    /// 本机信息：/api/local 面板展示用（仅 127.0.0.1 可见）
-    pub local: Arc<LocalInfo>,
+    /// 本机信息：/api/local 面板展示与中继控制（仅 127.0.0.1 可见）
+    pub local: Arc<LocalShared>,
+    pub identity: Arc<crate::config::Identity>,
+    /// 中继连接任务句柄（启动/停止由本地面板与 CLI 驱动）
+    pub relay: Arc<std::sync::Mutex<RelayCtl>>,
 }
 
-/// 本地面板数据（daemon 身份与中继配置的只读快照）
-pub struct LocalInfo {
+/// 本机共享状态：身份只读，中继状态可变（连接/断开/重试时更新）
+pub struct LocalShared {
     pub device_id: String,
     pub access_token: String,
-    pub relay_url: Option<String>,
+    relay: std::sync::Mutex<RelayState>,
+}
+
+#[derive(Clone, Default, serde::Serialize)]
+pub struct RelayState {
+    pub url: Option<String>,
+    pub online: bool,
+    pub note: String,
+}
+
+impl LocalShared {
+    pub fn new(device_id: String, access_token: String) -> Self {
+        Self {
+            device_id,
+            access_token,
+            relay: std::sync::Mutex::new(RelayState::default()),
+        }
+    }
+
+    pub fn relay_state(&self) -> RelayState {
+        self.relay.lock().unwrap().clone()
+    }
+
+    pub fn set_relay_url(&self, url: Option<String>) {
+        self.relay.lock().unwrap().url = url;
+    }
+
+    pub fn set_relay_note(&self, online: bool, note: impl Into<String>) {
+        let mut r = self.relay.lock().unwrap();
+        r.online = online;
+        r.note = note.into();
+    }
+}
+
+/// 中继任务控制：watch 通道发出停止信号，任务在连接循环边界退出
+pub struct RelayCtl {
+    stop_tx: Option<tokio::sync::watch::Sender<bool>>,
+}
+
+impl RelayCtl {
+    pub fn stopped() -> Self {
+        Self { stop_tx: None }
+    }
+
+    /// 启动（或替换）中继任务；旧任务（若有）先被停止
+    pub fn start(&mut self, url: String, identity: crate::config::Identity, state: AppState) {
+        self.stop();
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        self.stop_tx = Some(tx);
+        tokio::spawn(crate::relay_client::run_relay_mode(url, identity, state, rx));
+    }
+
+    pub fn stop(&mut self) {
+        if let Some(tx) = self.stop_tx.take() {
+            let _ = tx.send(true);
+        }
+    }
 }
 
 pub async fn handle_ws(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {

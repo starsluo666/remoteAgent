@@ -17,18 +17,45 @@ use crate::protocol::{ClientMsg, DaemonMsg};
 use crate::session::SessionEvent;
 use crate::ws::{handle_msg, AppState};
 
-pub async fn run_relay_mode(url: String, identity: Identity, state: AppState) {
+pub async fn run_relay_mode(
+    url: String,
+    identity: Identity,
+    state: AppState,
+    mut stop: tokio::sync::watch::Receiver<bool>,
+) {
     let mut backoff_secs: u64 = 1;
+    state.local.set_relay_note(false, "连接中");
     loop {
-        match connect_and_run(&url, &identity, &state).await {
-            Ok(()) => tracing::warn!("relay connection closed"),
-            Err(e) => tracing::warn!(error = %e, "relay connection error"),
+        if *stop.borrow() {
+            break;
+        }
+        let mut stop_wake = stop.clone();
+        tokio::select! {
+            r = connect_and_run(&url, &identity, &state, &mut stop) => match r {
+                Ok(()) => tracing::warn!("relay connection closed"),
+                Err(e) => tracing::warn!(error = %e, "relay connection error"),
+            },
+            _ = stop_wake.changed() => break,
+        }
+        if *stop.borrow() {
+            break;
         }
         state.sessions.clear_subscribers();
+        state
+            .local
+            .set_relay_note(false, format!("{backoff_secs} 秒后重试"));
         tracing::info!(retry_in_secs = backoff_secs, "reconnecting to relay");
-        tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)).await;
+        // 分片睡眠：停止信号可随时打断退避等待
+        for _ in 0..(backoff_secs * 4) {
+            if *stop.borrow() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        }
         backoff_secs = (backoff_secs * 2).min(30);
     }
+    state.local.set_relay_note(false, "已断开");
+    tracing::info!("relay task stopped");
 }
 
 async fn send_plain(
@@ -38,7 +65,13 @@ async fn send_plain(
     Ok(sink.send(Message::Text(s.to_string().into())).await?)
 }
 
-async fn connect_and_run(url: &str, identity: &Identity, state: &AppState) -> anyhow::Result<()> {
+async fn connect_and_run(
+    url: &str,
+    identity: &Identity,
+    state: &AppState,
+    stop: &mut tokio::sync::watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    state.local.set_relay_note(false, "连接中");
     let (ws, _) = tokio_tungstenite::connect_async(url).await?;
     tracing::info!(%url, "relay connected");
 
@@ -56,6 +89,7 @@ async fn connect_and_run(url: &str, identity: &Identity, state: &AppState) -> an
             match v["t"].as_str() {
                 Some("hello_ack") => {
                     tracing::info!(device = %identity.device_id, "registered at relay");
+                    state.local.set_relay_note(true, "已连接");
                 }
                 Some("error") => {
                     anyhow::bail!("relay rejected hello: {}", v["msg"].as_str().unwrap_or("?"));
@@ -71,6 +105,8 @@ async fn connect_and_run(url: &str, identity: &Identity, state: &AppState) -> an
 
     'conn: loop {
         tokio::select! {
+            // 停止信号：连接空闲时也能及时退出（changed 在未被消费前保持就绪）
+            _ = stop.changed() => break 'conn,
             evt = rx.recv() => {
                 let Some((sid, evt)) = evt else { break };
                 let msg = match evt {
