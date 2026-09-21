@@ -23,6 +23,9 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func handleDevices(h *hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// 设备列表（ID + 在线状态）属公开信息，放开 CORS 供任意托管页面浏览；
+		// 真正连接仍需设备各自的 access_token 完成 E2E 握手
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(h.listDevices())
 	}

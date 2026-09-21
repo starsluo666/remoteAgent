@@ -17,6 +17,15 @@ use crate::session::{SessionEvent, SessionManager};
 #[derive(Clone)]
 pub struct AppState {
     pub sessions: Arc<SessionManager>,
+    /// 本机信息：/api/local 面板展示用（仅 127.0.0.1 可见）
+    pub local: Arc<LocalInfo>,
+}
+
+/// 本地面板数据（daemon 身份与中继配置的只读快照）
+pub struct LocalInfo {
+    pub device_id: String,
+    pub access_token: String,
+    pub relay_url: Option<String>,
 }
 
 pub async fn handle_ws(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {

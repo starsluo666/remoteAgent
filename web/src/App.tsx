@@ -8,6 +8,7 @@ import '@xterm/xterm/css/xterm.css';
 import { DaemonConnection, type HelloFields, type Status } from './lib/daemon';
 import { b64encode, type SessionInfo } from './lib/protocol';
 import Connect, { saveConn } from './Connect';
+import LocalPanel from './LocalPanel';
 import './App.css';
 
 interface TermEntry {
@@ -102,6 +103,22 @@ function IconTerminal() {
       <path d="M5 7.5l4 4.5-4 4.5M12 16.5h7" />
     </svg>
   );
+}
+
+/** 无参数落地页：daemon 托管（127.0.0.1）→ 本机信息面板；否则 → 连接页 */
+function Landing() {
+  const [mode, setMode] = useState<'checking' | 'local' | 'connect'>('checking');
+  useEffect(() => {
+    fetch('/api/local')
+      .then((r) => {
+        // 中继静态托管的未知路径会回落到 index.html（text/html），只有 JSON 才算 daemon
+        const ct = r.headers.get('content-type') ?? '';
+        setMode(r.ok && ct.includes('json') ? 'local' : 'connect');
+      })
+      .catch(() => setMode('connect'));
+  }, []);
+  if (mode === 'checking') return <div className="connect-page" />;
+  return mode === 'local' ? <LocalPanel /> : <Connect />;
 }
 
 export default function App() {
@@ -399,9 +416,9 @@ export default function App() {
   const activeEntry = active ? termsRef.current.get(active) : null;
   const online = deviceOnline && status === 'ready';
 
-  // 无连接目标：渲染连接页（选中继 / 粘贴配对链接 / 最近连接）
+  // 无连接目标：落地页（daemon 托管 → 本机信息面板；中继托管 → 连接页）
   if (!t) {
-    return <Connect />;
+    return <Landing />;
   }
 
   const statusBadge = !deviceOnline

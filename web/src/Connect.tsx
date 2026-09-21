@@ -1,11 +1,11 @@
 // 连接页 / 「添加新设备」弹窗：选择要连接的中继与设备。
-// 三种接入方式：粘贴配对链接（智能解析）、手动填写、最近连接一键重连。
+// 接入方式：粘贴配对链接（智能解析）/ 浏览中继设备列表 / 最近连接一键重连。
 
 import { useEffect, useState } from 'react';
 
 export interface SavedConn {
   url: string; // 完整配对 href（含 query），重连直接跳转
-  relayHost: string; // 显示用：中继域名，本地模式为 '本机'
+  relayHost: string; // 显示用：中继域名
   deviceId: string;
   savedAt: number;
 }
@@ -64,6 +64,12 @@ export function normalizeRelay(input: string): string | null {
   return `wss://${t}/ws`;
 }
 
+/** 中继 ws 地址 → 对应 HTTP API 基址（浏览设备列表用） */
+function relayApiBase(relay: string | null): string {
+  if (!relay) return '';
+  return relay.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://').replace(/\/ws$/, '');
+}
+
 export function buildHref(f: PairFields): string {
   const q = new URLSearchParams();
   if (f.relay) q.set('relay', f.relay);
@@ -80,21 +86,27 @@ function timeAgo(ts: number): string {
   return `${Math.floor(s / 86400)} 天前`;
 }
 
+interface DeviceEntry {
+  deviceId: string;
+  online: boolean;
+}
+
 export default function Connect({ modal = false, onClose }: { modal?: boolean; onClose?: () => void }) {
   const [paste, setPaste] = useState('');
   const [relay, setRelay] = useState('');
-  const [device, setDevice] = useState('');
   const [token, setToken] = useState('');
+  const [device, setDevice] = useState<string | null>(null);
+  const [devices, setDevices] = useState<DeviceEntry[] | null>(null);
+  const [browsing, setBrowsing] = useState(false);
+  const [browseError, setBrowseError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recents, setRecents] = useState<SavedConn[]>([]);
-  // 本机 daemon 快捷入口：页面由 daemon 托管（本地端口）或在中继站点上时都可尝试
-  const isLocalHost = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 
   useEffect(() => {
     setRecents(loadConns());
   }, []);
 
-  // 粘贴即解析：识别出配对链接后自动填表
+  // 粘贴即解析：识别出配对链接后自动选中设备并填入令牌
   const onPaste = (text: string) => {
     setPaste(text);
     const f = parsePairText(text);
@@ -106,12 +118,32 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
     }
   };
 
+  // 浏览中继设备列表（relay 留空 = 当前站点）
+  const browse = async () => {
+    setBrowsing(true);
+    setBrowseError(null);
+    const base = relayApiBase(normalizeRelay(relay));
+    try {
+      const resp = await fetch(`${base}/api/devices`);
+      const ct = resp.headers.get('content-type') ?? '';
+      if (!resp.ok || !ct.includes('json')) throw new Error('not relay');
+      const list = (await resp.json()) as DeviceEntry[];
+      setDevices(list);
+      if (list.length === 0) setBrowseError('该中继上暂无在线设备');
+    } catch {
+      setDevices([]);
+      setBrowseError('无法获取设备列表——请检查中继地址是否正确');
+    } finally {
+      setBrowsing(false);
+    }
+  };
+
   const connect = () => {
-    if (!device.trim() || !token.trim()) {
-      setError('缺少设备 ID 或访问令牌——建议直接粘贴 daemon 打印的配对链接');
+    if (!device || !token.trim()) {
+      setError('请先选择设备（或粘贴配对链接）并输入访问令牌');
       return;
     }
-    location.assign(buildHref({ relay: normalizeRelay(relay), device: device.trim(), token: token.trim() }));
+    location.assign(buildHref({ relay: normalizeRelay(relay), device, token: token.trim() }));
   };
 
   const body = (
@@ -122,10 +154,10 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
         </svg>
       </div>
       <div className="connect-title">连接到设备</div>
-      <div className="connect-sub">粘贴家里 daemon 打印的配对链接，或手动填写</div>
+      <div className="connect-sub">粘贴配对链接，或浏览中继上的设备列表</div>
 
       <div className="field">
-        <label>配对链接</label>
+        <label>配对链接（最快）</label>
         <textarea
           className="paste-box"
           rows={2}
@@ -136,34 +168,66 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
         />
         {paste.trim() && (
           <div className={`parse-hint ${parsePairText(paste) ? 'ok' : 'bad'}`}>
-            {parsePairText(paste) ? '✓ 已识别，下方已自动填入' : '未识别出 device/token，请检查链接'}
+            {parsePairText(paste)
+              ? '✓ 已识别，设备与令牌已自动填入'
+              : '未识别出 device/token，请检查链接'}
           </div>
         )}
       </div>
 
+      <div className="divider">
+        <span>或浏览中继设备</span>
+      </div>
+
       <div className="field">
         <label>中继地址（留空 = 当前站点）</label>
-        <input
-          value={relay}
-          onChange={(e) => setRelay(e.target.value)}
-          placeholder="relay.example.com"
-          spellCheck={false}
-        />
-      </div>
-      <div className="field-row">
-        <div className="field grow">
-          <label>设备 ID</label>
-          <input value={device} onChange={(e) => setDevice(e.target.value)} spellCheck={false} />
-        </div>
-        <div className="field grow">
-          <label>访问令牌</label>
+        <div className="relay-row">
           <input
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            type="password"
+            value={relay}
+            onChange={(e) => {
+              setRelay(e.target.value);
+              setDevices(null); // 换中继后清空旧列表
+              setDevice(null);
+            }}
+            placeholder="relay.example.com"
             spellCheck={false}
           />
+          <button className="mini-btn browse-btn" onClick={() => void browse()} disabled={browsing}>
+            {browsing ? '查询中…' : '查看设备'}
+          </button>
         </div>
+      </div>
+
+      {devices && devices.length > 0 && (
+        <div className="device-pick">
+          {devices.map((d) => (
+            <div
+              key={d.deviceId}
+              className={`pick-row ${device === d.deviceId ? 'selected' : ''} ${d.online ? '' : 'offline'}`}
+              onClick={() => {
+                setDevice(d.deviceId);
+                setError(null);
+              }}
+            >
+              <span className={`dot ${d.online ? 'ok' : 'bad'}`} />
+              <span className="pick-id">{d.deviceId.slice(0, 8)}</span>
+              <span className="pick-state">{d.online ? '在线' : '离线'}</span>
+              {device === d.deviceId && <span className="pick-check">✓</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {browseError && <div className="browse-error">{browseError}</div>}
+
+      <div className="field">
+        <label>访问令牌（daemon 本机面板或启动日志里查看）</label>
+        <input
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          type="password"
+          placeholder="连接选中设备所需的 access token"
+          spellCheck={false}
+        />
       </div>
 
       {error && <div className="connect-error">{error}</div>}
@@ -171,15 +235,6 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
       <button className="primary-btn connect-go" onClick={connect}>
         连接
       </button>
-
-      {isLocalHost && (
-        <button
-          className="local-link"
-          onClick={() => location.assign(`${location.origin}${location.pathname}?local=1`)}
-        >
-          直接连接本机 daemon（127.0.0.1）
-        </button>
-      )}
 
       {recents.length > 0 && (
         <div className="recents">
