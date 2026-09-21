@@ -1,29 +1,36 @@
 // RemoteAgent 入口路由：
 // - ?device=&token=（±?relay=）或 ?local=1 → 终端工作区
 // - 无参数 + daemon 托管（/api/local 存在）→ 本机桌面应用（多页 Shell）
-// - 无参数 + 中继托管 → 连接页
+// - 无参数 + 中继托管 → 落地页（Hero），CTA 进入连接页
 
 import { useEffect, useState } from 'react';
 import TerminalApp from './TerminalApp';
 import Connect from './Connect';
 import Shell from './Shell';
+import LandingHero from './LandingHero';
 import { target } from './lib/target';
 import './App.css';
 
-/** 无参数落地：探测本机 daemon（JSON 响应判定）→ 桌面应用；否则连接页 */
+/** 无参数落地：探测本机 daemon（JSON 响应判定）→ 桌面应用；否则 落地页 → 连接页 */
 function Landing() {
-  const [mode, setMode] = useState<'checking' | 'local' | 'connect'>('checking');
+  const [mode, setMode] = useState<'checking' | 'local' | 'relay'>('checking');
+  const [entered, setEntered] = useState(false);
   useEffect(() => {
     fetch('/api/local')
       .then((r) => {
         // 中继静态托管的未知路径会回落到 index.html（text/html），只有 JSON 才算 daemon
         const ct = r.headers.get('content-type') ?? '';
-        setMode(r.ok && ct.includes('json') ? 'local' : 'connect');
+        setMode(r.ok && ct.includes('json') ? 'local' : 'relay');
       })
-      .catch(() => setMode('connect'));
+      .catch(() => setMode('relay'));
   }, []);
   if (mode === 'checking') return <div className="connect-page" />;
-  return mode === 'local' ? <Shell /> : <Connect />;
+  if (mode === 'local') return <Shell />;
+  // 中继站点：先展示落地页，点击进入连接页（浏览器返回可再回落地页）
+  if (!entered && !location.hash.includes('connect')) {
+    return <LandingHero onEnter={() => setEntered(true)} />;
+  }
+  return <Connect />;
 }
 
 export default function App() {

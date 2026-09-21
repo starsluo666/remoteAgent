@@ -1,5 +1,5 @@
-// 本机桌面应用骨架：侧栏主导航（概览/设备/Sessions/中继服务/设置）+ hash 路由。
-// 数据来自 daemon 本地 API（/api/local、/api/devices、/api/sessions）。
+// 本机桌面应用骨架（严格对齐设计稿）：
+// 居中圆角应用窗口 + 侧栏「主导航/次要导航」分组 + hash 路由。
 
 import { useEffect, useState, type ReactNode } from 'react';
 import OverviewPage from './pages/Overview';
@@ -7,10 +7,11 @@ import DevicesPage from './pages/Devices';
 import SessionsPage from './pages/Sessions';
 import RelayPage from './pages/Relay';
 import SettingsPage from './pages/Settings';
+import HelpPage from './pages/Help';
 import { usePoll } from './lib/usePoll';
 import type { LocalInfo } from './pages/types';
 
-const PAGES = ['overview', 'devices', 'sessions', 'relay', 'settings'] as const;
+const PAGES = ['overview', 'devices', 'sessions', 'relay', 'settings', 'help'] as const;
 type PageId = (typeof PAGES)[number];
 
 function useHashRoute(): [PageId, (p: PageId) => void] {
@@ -27,13 +28,46 @@ function useHashRoute(): [PageId, (p: PageId) => void] {
   return [page, (p) => (location.hash = `#/${p}`)];
 }
 
-const NAV: { id: PageId; label: string; icon: ReactNode }[] = [
+interface NavItem {
+  id: PageId;
+  label: string;
+  icon: ReactNode;
+}
+
+const MAIN_NAV: NavItem[] = [
   { id: 'overview', label: '概览', icon: <NavIconGrid /> },
   { id: 'devices', label: '设备', icon: <NavIconMonitor /> },
   { id: 'sessions', label: 'Sessions', icon: <NavIconActivity /> },
   { id: 'relay', label: '中继服务', icon: <NavIconServer /> },
-  { id: 'settings', label: '设置', icon: <NavIconGear /> },
 ];
+
+const SUB_NAV: NavItem[] = [
+  { id: 'settings', label: '设置', icon: <NavIconGear /> },
+  { id: 'help', label: '帮助', icon: <NavIconHelp /> },
+];
+
+function NavGroup({ title, items, page, navigate }: {
+  title: string;
+  items: NavItem[];
+  page: PageId;
+  navigate: (p: PageId) => void;
+}) {
+  return (
+    <div className="nav-group">
+      <div className="nav-group-title">{title}</div>
+      {items.map((n) => (
+        <button
+          key={n.id}
+          className={`nav-item ${page === n.id ? 'active' : ''}`}
+          onClick={() => navigate(n.id)}
+        >
+          {n.icon}
+          <span>{n.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function Shell() {
   const [page, navigate] = useHashRoute();
@@ -44,50 +78,44 @@ export default function Shell() {
   );
 
   const relayOk = local.relayOnline;
-  const relayLabel = local.relayUrl ? (relayOk ? '中继已连接' : '中继重试中') : '未连接中继';
 
   return (
     <div className="shell">
-      <aside className="shell-side">
-        <div className="brand">
-          <div className="logo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 7.5l4 4.5-4 4.5M12 16.5h7" />
-            </svg>
+      <div className="app-window">
+        <aside className="shell-side">
+          <div className="brand">
+            <div className="logo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 7.5l4 4.5-4 4.5M12 16.5h7" />
+              </svg>
+            </div>
+            <div className="brand-text">
+              <div className="brand-name">RemoteAgent</div>
+              <div className="brand-ver">v0.1 · 本机</div>
+            </div>
           </div>
-          <div className="brand-text">
-            <div className="brand-name">RemoteAgent</div>
-            <div className="brand-ver">v0.1 · 本机</div>
+
+          <NavGroup title="主导航" items={MAIN_NAV} page={page} navigate={navigate} />
+
+          <div className="nav-spacer" />
+
+          <NavGroup title="次要导航" items={SUB_NAV} page={page} navigate={navigate} />
+
+          <div className="shell-foot">
+            <span className={`dot ${relayOk ? 'ok' : local.relayUrl ? 'wait' : 'bad'}`} />
+            <span className="shell-foot-text">{relayOk ? '当前主机在线' : '中继未连接'}</span>
           </div>
-        </div>
+        </aside>
 
-        <div className="nav-group">
-          <div className="nav-group-title">主导航</div>
-          {NAV.map((n) => (
-            <button
-              key={n.id}
-              className={`nav-item ${page === n.id ? 'active' : ''}`}
-              onClick={() => navigate(n.id)}
-            >
-              {n.icon}
-              <span>{n.label}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="shell-foot">
-          <span className={`dot ${relayOk ? 'ok' : local.relayUrl ? 'wait' : 'bad'}`} />
-          <span className="shell-foot-text">{relayLabel}</span>
-        </div>
-      </aside>
-
-      <main className="shell-main">
-        {page === 'overview' && <OverviewPage local={local} />}
-        {page === 'devices' && <DevicesPage local={local} />}
-        {page === 'sessions' && <SessionsPage />}
-        {page === 'relay' && <RelayPage local={local} refresh={refreshLocal} />}
-        {page === 'settings' && <SettingsPage local={local} />}
-      </main>
+        <main className="shell-main">
+          {page === 'overview' && <OverviewPage local={local} />}
+          {page === 'devices' && <DevicesPage local={local} />}
+          {page === 'sessions' && <SessionsPage />}
+          {page === 'relay' && <RelayPage local={local} refresh={refreshLocal} />}
+          {page === 'settings' && <SettingsPage local={local} />}
+          {page === 'help' && <HelpPage />}
+        </main>
+      </div>
     </div>
   );
 }
@@ -132,6 +160,15 @@ function NavIconGear() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h0a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h0a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v0a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z" />
+    </svg>
+  );
+}
+function NavIconHelp() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.33c-.6.23-.9.62-.9 1.17v.5" />
+      <path d="M12 17h.01" />
     </svg>
   );
 }

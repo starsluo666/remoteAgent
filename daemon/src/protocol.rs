@@ -71,6 +71,7 @@ pub enum DaemonMsg {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionInfo {
     pub id: String,
     pub cmd: String,

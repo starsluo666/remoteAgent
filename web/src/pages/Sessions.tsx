@@ -1,14 +1,32 @@
-// Sessions 页：本机会话监控（运行中的终端会话列表）
+// Sessions 页：会话监控表（ID / Agent / 状态 / 时长 / 操作）
 
 import { usePoll } from '../lib/usePoll';
 import type { SessionRow } from './types';
 
 function timeAgo(ts: number): string {
-  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  const s = Math.max(0, Math.floor((Date.now() - ts * 1000) / 1000));
   if (s < 60) return '刚刚';
   if (s < 3600) return `${Math.floor(s / 60)} 分钟前`;
   if (s < 86400) return `${Math.floor(s / 3600)} 小时前`;
   return `${Math.floor(s / 86400)} 天前`;
+}
+
+function duration(ts: number): string {
+  const s = Math.max(0, Math.floor((Date.now() - ts * 1000) / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  return `${m}:${String(ss).padStart(2, '0')}`;
+}
+
+/** 按启动命令推导 Agent 类型（M7 会升级为输出流识别） */
+function agentOf(cmd: string): { label: string; cls: string } {
+  const c = cmd.toLowerCase();
+  if (c.includes('claude')) return { label: 'Claude Code', cls: 'agent-cc' };
+  if (c.includes('aider')) return { label: 'Aider', cls: 'agent-aider' };
+  if (c.includes('codex')) return { label: 'Codex', cls: 'agent-codex' };
+  return { label: '终端', cls: 'agent-term' };
 }
 
 export default function SessionsPage() {
@@ -24,7 +42,7 @@ export default function SessionsPage() {
       <div className="page-head">
         <div>
           <div className="page-title">Sessions</div>
-          <div className="page-sub">监控与恢复</div>
+          <div className="page-sub">监控与恢复 · {sessions.length} 个运行中</div>
         </div>
         <button className="primary-btn" onClick={() => location.assign('?local=1')}>
           新建会话
@@ -43,26 +61,33 @@ export default function SessionsPage() {
         <div className="ra-table">
           <div className="ra-row head">
             <div className="col-sid">会话</div>
-            <div className="col-cmd">命令</div>
+            <div className="col-agent">Agent</div>
             <div className="col-time">启动时间</div>
+            <div className="col-dur">时长</div>
             <div className="col-state">状态</div>
             <div className="col-act">操作</div>
           </div>
-          {sessions.map((s) => (
-            <div key={s.id} className="ra-row">
-              <div className="col-sid mono accent">#{s.id.slice(2, 8)}</div>
-              <div className="col-cmd mono">{s.cmd}</div>
-              <div className="col-time">{timeAgo(s.startedAt)}</div>
-              <div className="col-state">
-                <span className="pill on">运行中</span>
+          {sessions.map((s) => {
+            const agent = agentOf(s.cmd);
+            return (
+              <div key={s.id} className="ra-row">
+                <div className="col-sid mono accent">#{s.id.slice(2, 8)}</div>
+                <div className="col-agent">
+                  <span className={`agent-pill ${agent.cls}`}>{agent.label}</span>
+                </div>
+                <div className="col-time">{timeAgo(s.startedAt)}</div>
+                <div className="col-dur mono">{duration(s.startedAt)}</div>
+                <div className="col-state">
+                  <span className="pill on">运行中</span>
+                </div>
+                <div className="col-act">
+                  <button className="mini-btn accent" onClick={() => location.assign('?local=1')}>
+                    打开
+                  </button>
+                </div>
               </div>
-              <div className="col-act">
-                <button className="mini-btn accent" onClick={() => location.assign('?local=1')}>
-                  打开
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

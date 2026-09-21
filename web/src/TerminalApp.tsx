@@ -315,7 +315,7 @@ export default function TerminalApp() {
       if (!termsRef.current.has(sid)) {
         const term = new Terminal({
           fontFamily: '"JetBrains Mono", "Cascadia Mono", Consolas, "Courier New", monospace',
-          fontSize: 14,
+          fontSize: Number(localStorage.getItem('ra.termFontSize')) || 14,
           cursorBlink: true,
           theme: termTheme,
         });

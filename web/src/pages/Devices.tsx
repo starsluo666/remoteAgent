@@ -1,7 +1,9 @@
-// 设备页：本机 + 中继上可见的其他设备
+// 设备页：本机 + 中继上可见的其他设备 + 添加设备向导
 
+import { useState } from 'react';
 import { usePoll } from '../lib/usePoll';
 import { fetchDevices } from '../lib/target';
+import AddDeviceWizard from './AddDeviceWizard';
 import type { DeviceEntry, LocalInfo } from './types';
 
 export default function DevicesPage({ local }: { local: LocalInfo }) {
@@ -11,6 +13,7 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
     [],
     local.relayUrl,
   );
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const others = devices.filter((d) => d.deviceId !== local.deviceId);
 
@@ -21,6 +24,9 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
           <div className="page-title">设备</div>
           <div className="page-sub">连接到中继的设备，可在任意浏览器远程其终端</div>
         </div>
+        <button className="primary-btn" onClick={() => setWizardOpen(true)}>
+          + 添加新设备
+        </button>
       </div>
 
       <div className="ra-table">
@@ -79,6 +85,8 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
           页配置。
         </div>
       )}
+
+      {wizardOpen && <AddDeviceWizard local={local} onClose={() => setWizardOpen(false)} />}
     </div>
   );
 }
