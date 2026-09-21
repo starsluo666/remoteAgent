@@ -4,8 +4,14 @@ import { b64decode, type DaemonMsg } from './protocol';
 
 export type Status = 'connecting' | 'ready' | 'disconnected';
 
+export interface HelloFields {
+  deviceId: string;
+  token?: string;
+}
+
 export interface DaemonHandlers {
   onStatus: (s: Status) => void;
+  onPresence: (deviceId: string, online: boolean) => void;
   onSnapshot: (sessionId: string, data: Uint8Array) => void;
   onOutput: (sessionId: string, data: Uint8Array) => void;
   onExited: (sessionId: string, exitCode: number | null) => void;
@@ -18,10 +24,12 @@ export class DaemonConnection {
   private pending = new Map<number, (m: DaemonMsg) => void>();
   private disposed = false;
   private url: string;
+  private hello: HelloFields;
   private h: DaemonHandlers;
 
-  constructor(url: string, h: DaemonHandlers) {
+  constructor(url: string, hello: HelloFields, h: DaemonHandlers) {
     this.url = url;
+    this.hello = hello;
     this.h = h;
   }
 
@@ -31,7 +39,13 @@ export class DaemonConnection {
     const ws = new WebSocket(this.url);
     this.ws = ws;
     ws.onopen = () => {
-      this.send({ t: 'hello', v: 1, role: 'client', deviceId: 'local-browser' });
+      this.send({
+        t: 'hello',
+        v: 1,
+        role: 'client',
+        deviceId: this.hello.deviceId,
+        ...(this.hello.token ? { token: this.hello.token } : {}),
+      });
     };
     ws.onmessage = (ev) => {
       try {
@@ -50,6 +64,9 @@ export class DaemonConnection {
     switch (m.t) {
       case 'hello_ack':
         this.h.onStatus('ready');
+        return;
+      case 'presence':
+        this.h.onPresence(m.deviceId, m.online);
         return;
       case 'snapshot':
         this.h.onSnapshot(m.sessionId, b64decode(m.data));

@@ -19,6 +19,7 @@ export interface SessionInfo {
 export type DaemonMsg =
   | { t: 'hello_ack'; deviceId: string }
   | { t: 'pong' }
+  | { t: 'presence'; deviceId: string; online: boolean }
   | { t: 'session.list.result'; reqId: number; sessions: SessionInfo[] }
   | { t: 'session.created'; reqId: number; sessionId: string }
   | { t: 'session.attached'; reqId: number; sessionId: string }

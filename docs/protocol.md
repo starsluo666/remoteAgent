@@ -40,6 +40,7 @@
 
 - `role: "daemon"` 用**设备 token** 注册为房间所有者；`role: "client"` 用**访问 token** 加入房间。
 - 两种 token 独立签发、独立轮换（PRD §11：中继登录与设备访问分离）。
+- **现状（M2）**：实现为共享配对 token——daemon 首次运行生成并注册，client 凭同一 token 加入（`~/.remoteagent/identity.json`）。M3 拆分为独立双 token。
 - 同一房间已存在 daemon 时，新 daemon 的 hello 被拒绝（`error(device_already_online)`）。
 
 ### relay → client/daemon

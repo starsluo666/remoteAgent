@@ -1,11 +1,13 @@
-// RemoteAgent relay — M0 skeleton.
-// 房间 / 转发逻辑在 M2 实现；本阶段只验证：升级 WS、解析 hello、回 hello_ack。
+// RemoteAgent relay — WebSocket 房间中继 + 静态托管 web 客户端。
+// 用法：relay.exe [-listen 0.0.0.0:8080] [-web ../web/dist]
 package main
 
 import (
 	"encoding/json"
+	"flag"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/websocket"
 )
@@ -14,57 +16,123 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true }, // M3 收紧
 }
 
-// envelope 是所有消息的最小公共形状；载荷层消息 relay 不解析，这里只读 t。
-type envelope struct {
-	T        string `json:"t"`
-	V        int    `json:"v,omitempty"`
-	Role     string `json:"role,omitempty"`
-	DeviceID string `json:"deviceId,omitempty"`
-	Token    string `json:"token,omitempty"`
-}
-
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true,"name":"remoteagent-relay","proto":1}`))
 }
 
-func handleWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("upgrade: %v", err)
-		return
-	}
-	defer conn.Close()
-
-	var msg envelope
-	if err := conn.ReadJSON(&msg); err != nil {
-		return
-	}
-	if msg.T != "hello" {
-		conn.WriteJSON(map[string]string{"t": "error", "code": "protocol_error", "msg": "first message must be hello"})
-		return
-	}
-	if msg.V != 1 {
-		conn.WriteJSON(map[string]string{"t": "error", "code": "unsupported_version", "msg": "want proto v1"})
-		return
-	}
-	// TODO(M2): 校验 token、按 role 建立/加入 deviceId 房间
-	conn.WriteJSON(map[string]string{"t": "hello_ack", "deviceId": msg.DeviceID})
-	log.Printf("hello: role=%s device=%s", msg.Role, msg.DeviceID)
-
-	for {
-		var raw json.RawMessage
-		if err := conn.ReadJSON(&raw); err != nil {
+func handleWS(h *hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Printf("upgrade: %v", err)
 			return
 		}
-		// TODO(M2): 载荷层消息原样转发给房间内其他连接
-		_ = raw
+		c := &conn{ws: ws, send: make(chan []byte, sendQueue)}
+		go writePump(c)
+		readPump(h, c)
 	}
 }
 
+func readPump(h *hub, c *conn) {
+	defer func() {
+		h.unregister(c)
+		c.shutdown()
+	}()
+
+	// 握手：第一条必须是 hello v1
+	var e envelope
+	if err := c.ws.ReadJSON(&e); err != nil {
+		return
+	}
+	if e.T != "hello" {
+		c.sendMsg(errPayload("protocol_error", "first message must be hello"))
+		return
+	}
+	if e.V != 1 {
+		c.sendMsg(errPayload("unsupported_version", "want proto v1"))
+		return
+	}
+	if e.DeviceID == "" || e.Token == "" {
+		c.sendMsg(errPayload("auth_failed", "deviceId and token required"))
+		return
+	}
+
+	var ack []byte
+	switch e.Role {
+	case "daemon":
+		ack = h.registerDaemon(e.DeviceID, e.Token, c)
+	case "client":
+		ack = h.joinClient(e.DeviceID, e.Token, c)
+	default:
+		ack = errPayload("auth_failed", "role must be daemon or client")
+	}
+	if !c.sendMsg(ack) {
+		return
+	}
+	if isErr(ack) {
+		return // 握手失败，直接断开
+	}
+
+	for {
+		t, raw, err := c.ws.ReadMessage()
+		if err != nil {
+			return
+		}
+		if t != websocket.TextMessage {
+			continue
+		}
+		// 控制层：只认 ping；其余全部按载荷转发（原样字节，不解不改）
+		var probe envelope
+		if err := json.Unmarshal(raw, &probe); err == nil {
+			switch probe.T {
+			case "ping":
+				c.sendMsg(mustJSON(map[string]string{"t": "pong"}))
+				continue
+			case "hello":
+				continue // 已握手，忽略重复 hello
+			}
+		}
+		h.forward(c, raw)
+	}
+}
+
+func writePump(c *conn) {
+	for b := range c.send {
+		if err := c.ws.WriteMessage(websocket.TextMessage, b); err != nil {
+			c.shutdown()
+			return
+		}
+	}
+}
+
+func isErr(b []byte) bool {
+	var e envelope
+	if err := json.Unmarshal(b, &e); err != nil {
+		return false
+	}
+	return e.T == "error"
+}
+
 func main() {
-	http.HandleFunc("/health", handleHealth)
-	http.HandleFunc("/ws", handleWS)
-	log.Println("remoteagent-relay listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	listen := flag.String("listen", "0.0.0.0:8080", "listen address")
+	webDir := flag.String("web", "../web/dist", "web client dist dir (empty to disable)")
+	flag.Parse()
+
+	h := newHub()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/ws", handleWS(h))
+
+	if *webDir != "" {
+		if st, err := os.Stat(*webDir); err == nil && st.IsDir() {
+			mux.Handle("/", http.FileServer(http.Dir(*webDir)))
+			log.Printf("serving web client from %s", *webDir)
+		} else {
+			log.Printf("web dir %s not found, static serving disabled", *webDir)
+		}
+	}
+
+	log.Printf("remoteagent-relay listening on %s", *listen)
+	log.Fatal(http.ListenAndServe(*listen, mux))
 }

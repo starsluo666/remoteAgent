@@ -146,7 +146,7 @@ async fn handle_socket_inner(mut socket: WebSocket, state: AppState) -> anyhow::
 
 /// 处理一条客户端消息，返回需要回发的消息（可能为空）。
 /// 推送类事件（output/exited）走 session 订阅通道，不在这里。
-fn handle_msg(
+pub(crate) fn handle_msg(
     state: &AppState,
     tx: &crate::session::EventTx,
     msg: ClientMsg,

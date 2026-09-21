@@ -18,21 +18,30 @@ PRD 见 `../RemoteAgent PRD v0.1 · 完整产品需求文档（18 章）`。
 ## 开发
 
 ```bash
-# relay（默认 :8080）
-cd relay && go run .
+# relay（默认 0.0.0.0:8080，同时托管 web 页面）
+cd relay && go run . -web ../web/dist
 
-# daemon（M1 起本地模式 :9800，M2 起连中继）
+# daemon 本地模式（127.0.0.1:9800，浏览器直连）
 cd daemon && cargo run
 
-# web
+# daemon 中继模式（出站连接 relay，手机/外网经中继访问）
+cd daemon && cargo run -- --relay ws://<relay-host>:8080/ws
+# 启动后日志会打印配对链接：http://<relay-host>:8080/?device=<id>&token=<t>
+
+# web（开发模式，/ws 代理到本地 daemon）
 cd web && npm install && npm run dev
+
+# smoke 测试
+cd web && node scripts/smoke-relay.mjs              # 中继逻辑（假 daemon + 假 client）
+cd web && node scripts/smoke-ws.mjs                 # 端到端（本地模式）
+cd web && node scripts/smoke-ws.mjs ws://127.0.0.1:8080/ws <deviceId> <token>   # 端到端（经中继）
 ```
 
 ## 路线（v0.1）
 
 - [x] M0 骨架 + 协议
 - [x] M1 本地全链路（PTY ↔ xterm.js，不经中继）
-- [ ] M2 中继 + 出站连接
+- [x] M2 中继 + 出站连接
 - [ ] M3 TLS + token 分离 + 端到端加密
 - [ ] M4 多 session + 设备列表
 - [ ] M5 手动接管 / 暂停

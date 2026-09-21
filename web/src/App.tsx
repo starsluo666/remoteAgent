@@ -1,17 +1,35 @@
 // RemoteAgent web client — M1 本地模式。
 // 连接 daemon → 列出/新建 session → attach → xterm.js 全屏终端。
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import { DaemonConnection, type Status } from './lib/daemon';
+import { DaemonConnection, type HelloFields, type Status } from './lib/daemon';
 import { b64encode, type SessionInfo } from './lib/protocol';
 import './App.css';
 
-function wsUrl(): string {
+// 连接目标：
+// - ?relay=ws%3A%2F%2Fhost%3A8080%2Fws&device=<id>&token=<t> → 中继模式
+// - ?device=<id>&token=<t>（页面由中继托管时）→ 同源 /ws
+// - 无参数 → 本地模式（daemon 直连）
+function target(): { url: string; hello: HelloFields; mode: string } {
+  const q = new URLSearchParams(location.search);
+  const device = q.get('device');
+  const token = q.get('token') ?? undefined;
+  const relay = q.get('relay');
+  if (device) {
+    const url = relay
+      ? relay
+      : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+    return { url, hello: { deviceId: device, token }, mode: 'relay' };
+  }
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${location.host}/ws`;
+  return {
+    url: `${proto}://${location.host}/ws`,
+    hello: { deviceId: 'local-browser' },
+    mode: 'local',
+  };
 }
 
 export default function App() {
@@ -24,6 +42,8 @@ export default function App() {
   const [status, setStatus] = useState<Status>('connecting');
   const [ended, setEnded] = useState(false);
   const [sessionShort, setSessionShort] = useState('');
+  const [deviceOnline, setDeviceOnline] = useState(true);
+  const mode = useMemo(() => target().mode, []);
 
   const attachSession = useCallback(async (conn: DaemonConnection, sessionId: string) => {
     const m = await conn.request({ t: 'session.attach', sessionId });
@@ -109,13 +129,18 @@ export default function App() {
 
     let retryTimer: number | undefined;
 
-    const conn = new DaemonConnection(wsUrl(), {
+    const t = target();
+    const conn = new DaemonConnection(t.url, t.hello, {
       onStatus: (s) => {
         setStatus(s);
         if (s === 'ready') bootstrapRef.current();
         if (s === 'disconnected') {
+          setDeviceOnline(true); // 连接层状态优先，等待重连
           retryTimer = window.setTimeout(() => connRef.current?.connect(), 2000);
         }
+      },
+      onPresence: (_deviceId, online) => {
+        setDeviceOnline(online);
       },
       onSnapshot: (sid, data) => {
         if (sid !== sessionRef.current) return;
@@ -170,19 +195,25 @@ export default function App() {
     void createSession(conn, term.cols, term.rows);
   };
 
-  const statusText =
-    status === 'ready' ? 'connected' : status === 'connecting' ? 'connecting…' : 'reconnecting…';
+  const statusText = !deviceOnline
+    ? 'device offline'
+    : status === 'ready'
+      ? 'connected'
+      : status === 'connecting'
+        ? 'connecting…'
+        : 'reconnecting…';
+  const dotClass = !deviceOnline ? 'disconnected' : status;
 
   return (
     <div className="app">
       <header className="bar">
         <span className="brand">
-          RemoteAgent <span className="mode">· local</span>
+          RemoteAgent <span className="mode">· {mode}</span>
         </span>
         <span className="meta">
           {sessionShort && <span className="sid">session {sessionShort}</span>}
-          <span className={`dot ${status}`} />
-          <span className={`status ${status}`}>{statusText}</span>
+          <span className={`dot ${dotClass}`} />
+          <span className={`status ${dotClass}`}>{statusText}</span>
         </span>
       </header>
       <div className="term-wrap">

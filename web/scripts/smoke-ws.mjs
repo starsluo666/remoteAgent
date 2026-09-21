@@ -1,9 +1,12 @@
-// M1 协议层 smoke 测试：hello → list → create → attach → input → output → kill → exited。
-// 用法：先启动 daemon（cargo run），再 node scripts/smoke-ws.mjs
+// M1/M2 协议层 smoke：hello → list → create → attach → input → output → kill → exited。
+// 本地模式：先启动 daemon（cargo run），再 node scripts/smoke-ws.mjs
+// 中继模式：node scripts/smoke-ws.mjs ws://127.0.0.1:8080/ws <deviceId> <token>
 
 import WebSocket from 'ws';
 
-const URL = 'ws://127.0.0.1:9800/ws';
+const URL = process.argv[2] ?? 'ws://127.0.0.1:9800/ws';
+const DEVICE = process.argv[3] ?? 'local-smoke';
+const TOKEN = process.argv[4] ?? '';
 const MARK = 'ra_smoke_ok_9417';
 
 const ws = new WebSocket(URL);
@@ -40,7 +43,9 @@ async function finish() {
   // 等 exited 事件
 }
 
-ws.on('open', () => ws.send(JSON.stringify({ t: 'hello', v: 1, role: 'client', deviceId: 'smoke' })));
+ws.on('open', () =>
+  ws.send(JSON.stringify({ t: 'hello', v: 1, role: 'client', deviceId: DEVICE, ...(TOKEN ? { token: TOKEN } : {}) })),
+);
 
 ws.on('message', (raw) => {
   const m = JSON.parse(raw.toString());
