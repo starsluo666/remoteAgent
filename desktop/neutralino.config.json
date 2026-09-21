@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/neutralinojs/neutralinojs/main/schemas/neutralino.config.schema.json",
+  "applicationId": "dev.remoteagent.desktop",
+  "version": "0.1.0",
+  "defaultMode": "window",
+  "port": 0,
+  "documentRoot": "resources/",
+  "url": "/",
+  "enableServer": true,
+  "enableExtensions": false,
+  "exportAuthInfo": false,
+  "nativeAllowList": ["app.*"],
+  "modes": {
+    "window": {
+      "title": "RemoteAgent",
+      "width": 1200,
+      "height": 800,
+      "minWidth": 400,
+      "minHeight": 300,
+      "icon": "/favicon.svg",
+      "enableInspector": false,
+      "exitProcessOnClose": true
+    }
+  },
+  "cli": {
+    "binaryName": "RemoteAgent",
+    "resourcesPath": "/resources/",
+    "extensionsPath": "/extensions/",
+    "clientLibrary": "/resources/neutralino.js",
+    "binaryVersion": "6.2.0",
+    "clientVersion": "6.2.0"
+  }
+}

@@ -21,3 +21,18 @@ deploy/relay-linux-*
 deploy/web/
 relay.exe~
 *.exe~
+
+# 桌面客户端构建产物
+desktop/bin/
+desktop/resources/
+desktop/dist/
+desktop/node_modules/
+desktop/package-lock.json
+desktop/app-icon.png
+desktop/favicon.svg
+desktop/icons.svg
+desktop-tauri/src-tauri/target/
+desktop-tauri/src-tauri/gen/
+desktop-tauri/node_modules/
+desktop-tauri/app-icon.png
+desktop-tauri/src-tauri/icons/
