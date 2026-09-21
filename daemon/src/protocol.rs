@@ -35,6 +35,13 @@ pub enum ClientMsg {
     Input { session_id: String, data: String },
     #[serde(rename = "resize")]
     Resize { session_id: String, cols: u16, rows: u16 },
+    /// E2E 握手（仅中继模式，M3）：HMAC(accessToken, client_pub)
+    #[serde(rename = "auth.proof")]
+    AuthProof {
+        #[serde(rename = "pub")]
+        pub_key: String,
+        mac: String,
+    },
 }
 
 /// daemon → 客户端

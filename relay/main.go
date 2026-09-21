@@ -53,8 +53,13 @@ func readPump(h *hub, c *conn) {
 		c.sendMsg(errPayload("unsupported_version", "want proto v1"))
 		return
 	}
-	if e.DeviceID == "" || e.Token == "" {
-		c.sendMsg(errPayload("auth_failed", "deviceId and token required"))
+	if e.DeviceID == "" {
+		c.sendMsg(errPayload("auth_failed", "deviceId required"))
+		return
+	}
+	// token 只用于 daemon 注册；客户端认证由 daemon 侧 E2E 握手完成
+	if e.Role == "daemon" && e.Token == "" {
+		c.sendMsg(errPayload("auth_failed", "daemon token required"))
 		return
 	}
 
@@ -63,7 +68,7 @@ func readPump(h *hub, c *conn) {
 	case "daemon":
 		ack = h.registerDaemon(e.DeviceID, e.Token, c)
 	case "client":
-		ack = h.joinClient(e.DeviceID, e.Token, c)
+		ack = h.joinClient(e.DeviceID, c)
 	default:
 		ack = errPayload("auth_failed", "role must be daemon or client")
 	}
@@ -93,7 +98,7 @@ func readPump(h *hub, c *conn) {
 				continue // 已握手，忽略重复 hello
 			}
 		}
-		h.forward(c, raw)
+		log.Printf("forward role=%s device=%s bytes=%d", c.role, c.deviceID, len(raw)); h.forward(c, raw)
 	}
 }
 
@@ -104,6 +109,7 @@ func writePump(c *conn) {
 			return
 		}
 	}
+	c.ws.Close()
 }
 
 func isErr(b []byte) bool {

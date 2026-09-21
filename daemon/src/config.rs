@@ -1,6 +1,7 @@
-//! 设备身份：deviceId + 配对 token，首次运行生成，落盘 ~/.remoteagent/identity.json。
-//! M2 为共享配对 token（daemon 注册、client 凭同一个 token 加入）；
-//! M3 按协议拆分为中继会话密钥与设备访问 token。
+//! 设备身份：deviceId + 中继密钥 + 访问 token，落盘 ~/.remoteagent/identity.json。
+//! - relay_key：daemon 向中继注册的身份（中继可见）。
+//! - access_token：客户端配对凭据，**永不明文上链路**，只以 HMAC 证明形式出现。
+//! 两者独立轮换：--rotate-access-token 只换 access_token，中继注册不受影响。
 
 use std::fs;
 use std::path::PathBuf;
@@ -11,7 +12,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Identity {
     pub device_id: String,
-    pub token: String,
+    pub relay_key: String,
+    pub access_token: String,
 }
 
 fn identity_path() -> Result<PathBuf> {
@@ -23,18 +25,44 @@ fn identity_path() -> Result<PathBuf> {
     Ok(dir.join("identity.json"))
 }
 
+fn new_token() -> String {
+    format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple())
+}
+
 pub fn load_or_create() -> Result<Identity> {
     let path = identity_path()?;
+
+    // M2 旧格式迁移：token → relay_key，补生成 access_token
     if path.exists() {
         let raw = fs::read_to_string(&path).context("read identity.json")?;
-        let id: Identity = serde_json::from_str(&raw).context("parse identity.json")?;
+        let mut v: serde_json::Value = serde_json::from_str(&raw).context("parse identity.json")?;
+        if v.get("access_token").is_none() {
+            v["access_token"] = serde_json::json!(new_token());
+            if v.get("relay_key").is_none() {
+                v["relay_key"] = v["token"].clone();
+            }
+            fs::write(&path, serde_json::to_string_pretty(&v)?)?;
+            tracing::info!("identity migrated to split-token format");
+        }
+        let id: Identity = serde_json::from_value(v).context("parse identity.json")?;
         return Ok(id);
     }
+
     let id = Identity {
         device_id: uuid::Uuid::new_v4().to_string(),
-        token: format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple()),
+        relay_key: new_token(),
+        access_token: new_token(),
     };
     fs::write(&path, serde_json::to_string_pretty(&id)?).context("write identity.json")?;
     tracing::info!(path = %path.display(), "created new device identity");
+    Ok(id)
+}
+
+/// 轮换访问 token（客户端旧配对链接立即失效）
+pub fn rotate_access_token() -> Result<Identity> {
+    let mut id = load_or_create()?;
+    id.access_token = new_token();
+    let path = identity_path()?;
+    fs::write(&path, serde_json::to_string_pretty(&id)?).context("write identity.json")?;
     Ok(id)
 }

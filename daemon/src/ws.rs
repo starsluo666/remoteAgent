@@ -154,6 +154,12 @@ pub(crate) fn handle_msg(
     match msg {
         ClientMsg::Ping => vec![DaemonMsg::Pong],
         ClientMsg::Hello { .. } => vec![], // 已在握手阶段处理
+        // 中继模式在认证门处理；本地模式不应出现
+        ClientMsg::AuthProof { .. } => vec![DaemonMsg::Error {
+            req_id: None,
+            code: "protocol_error".into(),
+            msg: "auth.proof only valid in relay mode".into(),
+        }],
 
         ClientMsg::SessionList { req_id } => vec![DaemonMsg::SessionListResult {
             req_id,

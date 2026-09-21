@@ -158,6 +158,10 @@ export default function App() {
       },
       onError: (code, msg) => {
         term.writeln(`\r\n\x1b[31m[${code}] ${msg}\x1b[0m`);
+        // 致命错误：停止重连，避免占用/抢夺单 viewer 槽位
+        if (code === 'auth_failed' || code === 'device_busy' || code === 'decrypt_failed') {
+          connRef.current?.close();
+        }
       },
     });
     connRef.current = conn;

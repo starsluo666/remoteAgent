@@ -38,10 +38,10 @@
 { "t": "ping" }
 ```
 
-- `role: "daemon"` 用**设备 token** 注册为房间所有者；`role: "client"` 用**访问 token** 加入房间。
-- 两种 token 独立签发、独立轮换（PRD §11：中继登录与设备访问分离）。
-- **现状（M2）**：实现为共享配对 token——daemon 首次运行生成并注册，client 凭同一 token 加入（`~/.remoteagent/identity.json`）。M3 拆分为独立双 token。
+- `role: "daemon"` 用**中继密钥（relay_key）** 注册为房间所有者；`role: "client"` 加入房间（中继不校验客户端身份）。
+- **客户端认证在 daemon 侧完成**（§5 的 auth.proof HMAC），accessToken **永不明文上链路**，中继对它一无所知。
 - 同一房间已存在 daemon 时，新 daemon 的 hello 被拒绝（`error(device_already_online)`）。
+- **v0.1 单 viewer**：房间已有 client 时新加入者被拒（`error(device_busy)`）；M4 多端镜像时放开。
 
 ### relay → client/daemon
 
@@ -99,16 +99,38 @@
 - 客户端 `session.attach` 后 daemon 主动推一条 `snapshot`（当前缓冲全量），随后继续 `output`。
   这一份机制同时满足：断线重连恢复画面、多端镜像新加入者补画面。
 
-## 5. 加密信封（M3 预留，先定形后启用）
+## 5. 端到端加密（M3 已实现）
 
-```jsonc
-{ "t": "enc", "nn": "<base64 12字节 nonce>", "ct": "<base64 AES-256-GCM 密文>" }
+### 5.1 握手（PSK = accessToken，永不明文上链路）
+
+```
+client → daemon:  { "t": "auth.proof", "pub": "<b64 X25519 client_pub>",
+                    "mac": "<b64 HMAC-SHA256(accessToken, client_pub)>" }
+daemon → client:  { "t": "auth.ok",     "pub": "<b64 X25519 daemon_pub>",
+                    "mac": "<b64 HMAC-SHA256(accessToken, daemon_pub)>" }
 ```
 
-- 密钥：daemon 与 client 在 hello 之后做 X25519 ECDH 协商（信令明文，会话密钥不出端）。
-- 启用后 §4 所有消息整体作为明文加密；§3 控制层保持明文（relay 必须读）。
-- seq 不加密不隐藏（relay 需要它做背压统计）→ seq 提升到 `enc` 外层：
-  `{ "t": "enc", "seq": 42, "nn": "...", "ct": "..." }`
+- 双向认证：双方各自验证对方 HMAC（中继无私钥、无 token，既不能解密也不能伪造）。
+- 会话密钥：`key = HKDF-SHA256(ECDH(client_priv, daemon_pub), salt = daemon_pub || client_pub, info = "remoteagent-payload-v1", len = 32)`
+  **盐按角色定序（daemon 在前）**，两端实现必须一致。
+- 客户端换人：`auth.proof` 任意时刻可重发，daemon 重新握手并**重置会话密钥**。
+
+### 5.2 enc 信封
+
+```jsonc
+{ "t": "enc", "nn": "<base64 12字节 nonce>", "ct": "<base64 AES-256-GCM 密文||tag>" }
+```
+
+- §4 所有消息整体作为明文加密；§3 控制层保持明文（relay 必须读）。
+- **JSON 键序无关**：判断消息类型必须解析后看 `t` 字段（serde_json 默认按键名排序输出，禁止字符串前缀判断）。
+- 认证门：daemon 在收到有效 `auth.proof` 之前，除 `auth.proof`/`ping` 外的消息一律回 `error(auth_required)`；
+  建立加密通道后，明文载荷一律丢弃（防降级攻击）。
+
+### 5.3 token 模型（现状）
+
+- `relay_key`：daemon 向中继注册的身份（中继可见），存于 `~/.remoteagent/identity.json`。
+- `access_token`：客户端配对凭据，只存在于 daemon 与客户端（配对链接 `?token=`），**只以 HMAC 证明形式上线**。
+- 轮换：`remoteagent-daemon --rotate-access-token` 换新后旧配对链接立即失效。
 
 ## 6. 错误码
 

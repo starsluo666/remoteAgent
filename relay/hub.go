@@ -43,10 +43,9 @@ func (c *conn) sendMsg(b []byte) bool {
 }
 
 func (c *conn) shutdown() {
-	c.closeOnce.Do(func() {
-		close(c.send)
-		c.ws.Close()
-	})
+	// 只关发送队列；socket 由 writePump 排空队列后负责关闭，
+	// 避免队列里尚未写出的消息（如 busy/auth 错误）被丢掉
+	c.closeOnce.Do(func() { close(c.send) })
 }
 
 func mustJSON(v any) []byte {
@@ -101,8 +100,10 @@ func (h *hub) registerDaemon(deviceID, token string, c *conn) []byte {
 	return mustJSON(map[string]string{"t": "hello_ack", "deviceId": deviceID})
 }
 
-// joinClient：client 凭配对 token 加入房间（daemon 必须在线）。
-func (h *hub) joinClient(deviceID, token string, c *conn) []byte {
+// joinClient：client 加入房间（daemon 必须在线）。
+// 注意：中继不校验客户端身份——认证由 daemon 完成（auth.proof HMAC，M3），
+// 中继对 accessToken 一无所知。v0.1 单 viewer：已有 client 时拒绝。
+func (h *hub) joinClient(deviceID string, c *conn) []byte {
 	h.mu.Lock()
 	r, ok := h.rooms[deviceID]
 	h.mu.Unlock()
@@ -115,12 +116,12 @@ func (h *hub) joinClient(deviceID, token string, c *conn) []byte {
 	if r.daemon == nil {
 		return errPayload("device_offline", "device daemon is offline")
 	}
-	if token != r.token {
-		return errPayload("auth_failed", "bad pairing token")
+	if len(r.clients) > 0 {
+		log.Printf("join rejected: busy device=%s clients=%d", deviceID, len(r.clients)); return errPayload("device_busy", "another viewer is already connected")
 	}
 	r.clients[c] = true
 	c.deviceID, c.role = deviceID, "client"
-	log.Printf("client joined device=%s clients=%d", deviceID, len(r.clients))
+	log.Printf("client joined device=%s", deviceID)
 	return mustJSON(map[string]string{"t": "hello_ack", "deviceId": deviceID})
 }
 

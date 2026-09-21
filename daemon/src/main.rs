@@ -3,6 +3,7 @@
 // --relay <url>：出站中继模式（连中继，手机/外网经中继访问），本地服务停用。
 
 mod config;
+mod crypto;
 mod protocol;
 mod relay_client;
 mod session;
@@ -20,6 +21,13 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or_else(|_| "info".into()),
         )
         .init();
+
+    if std::env::args().any(|a| a == "--rotate-access-token") {
+        let id = config::rotate_access_token()?;
+        tracing::info!(device = %id.device_id, "access token rotated");
+        tracing::info!("new pairing token: {}", id.access_token);
+        return Ok(());
+    }
 
     let identity = config::load_or_create()?;
 
@@ -42,8 +50,12 @@ async fn main() -> anyhow::Result<()> {
             .split('/')
             .next()
             .unwrap_or("relay");
-        tracing::info!(device = %identity.device_id, token = %identity.token, "relay mode");
-        tracing::info!("pair with: http://{host}/?device={}&token={}", identity.device_id, identity.token);
+        tracing::info!(device = %identity.device_id, "relay mode");
+        tracing::info!(
+            "pair with: http://{host}/?device={}&token={}",
+            identity.device_id,
+            identity.access_token
+        );
         relay_client::run_relay_mode(url, identity, state).await;
         return Ok(());
     }
