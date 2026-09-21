@@ -58,6 +58,8 @@ pub enum DaemonMsg {
     SessionCreated { req_id: u64, session_id: String },
     #[serde(rename = "session.attached")]
     SessionAttached { req_id: u64, session_id: String },
+    #[serde(rename = "session.killed")]
+    SessionKilled { req_id: u64, session_id: String },
     #[serde(rename = "output")]
     Output { session_id: String, seq: u64, data: String },
     #[serde(rename = "snapshot")]

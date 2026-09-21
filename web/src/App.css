@@ -1,44 +1,164 @@
-.app {
-  display: flex;
-  flex-direction: column;
+.layout {
+  display: grid;
+  grid-template-columns: 210px 1fr;
   height: 100vh;
   background: #0c0f14;
+}
+
+/* ── 侧栏 ─────────────────────────── */
+.side {
+  display: flex;
+  flex-direction: column;
+  background: #0e1117;
+  border-right: 1px solid #1e2530;
+  padding: 12px 10px;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.brand {
+  font-weight: 600;
+  color: #d6dce5;
+  font-size: 14px;
+  padding: 2px 6px 10px;
+  border-bottom: 1px solid #1e2530;
+}
+
+.mode {
+  color: #10b981;
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.section.grow {
+  flex: 1;
+  min-height: 0;
+}
+
+.section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #5b667a;
+  padding: 0 6px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.new-btn {
+  background: transparent;
+  border: 1px solid #2a3342;
+  color: #10b981;
+  font-size: 11px;
+  border-radius: 4px;
+  padding: 1px 7px;
+  cursor: pointer;
+}
+.new-btn:hover {
+  background: #14202b;
+}
+
+.device {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: #8b95a7;
+  font-size: 12.5px;
+}
+
+.device .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #8b95a7;
+  font-size: 12.5px;
+}
+.session-item:hover {
+  background: #141924;
+}
+.session-item.active {
+  background: #16222e;
+  color: #d6dce5;
+}
+.session-item.ended {
+  opacity: 0.45;
+}
+
+.s-cmd {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-id {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: #5b667a;
+}
+
+.kill-btn {
+  visibility: hidden;
+  background: transparent;
+  border: none;
+  color: #b06367;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 3px;
+}
+.session-item:hover .kill-btn {
+  visibility: visible;
+}
+
+/* ── 主区 ─────────────────────────── */
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 38px;
+  height: 36px;
   padding: 0 14px;
   background: #10141b;
   border-bottom: 1px solid #1e2530;
   color: #8b95a7;
-  font-size: 12.5px;
+  font-size: 12px;
   user-select: none;
   flex: none;
 }
 
-.brand {
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #d6dce5;
-}
-
-.mode {
-  color: #10b981;
-  font-weight: 400;
+.meta-left {
+  font-family: Consolas, monospace;
+  color: #5b667a;
 }
 
 .meta {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.sid {
-  font-family: Consolas, monospace;
-  color: #5b667a;
+  gap: 8px;
 }
 
 .dot {
@@ -46,6 +166,7 @@
   height: 8px;
   border-radius: 50%;
   background: #f59e0b;
+  flex: none;
 }
 .dot.ready {
   background: #10b981;
@@ -69,9 +190,21 @@
   padding: 4px 0 4px 8px;
 }
 
-.term {
+.term-holder {
   width: 100%;
   height: 100%;
+}
+.term-holder.hidden {
+  display: none;
+}
+
+.empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3d4657;
+  font-size: 13px;
 }
 
 .ended-overlay {
@@ -95,4 +228,40 @@
 }
 .ended-overlay button:hover {
   background: #34d399;
+}
+
+/* ── 窄屏：侧栏变顶部横条 ─────────── */
+@media (max-width: 700px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .side {
+    flex-direction: row;
+    align-items: center;
+    border-right: none;
+    border-bottom: 1px solid #1e2530;
+    padding: 6px 10px;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .brand {
+    border-bottom: none;
+    padding: 0 6px 0 0;
+    white-space: nowrap;
+  }
+  .section.grow {
+    flex-direction: row;
+    gap: 6px;
+  }
+  .section-title {
+    display: none;
+  }
+  .device,
+  .session-item {
+    white-space: nowrap;
+    padding: 4px 8px;
+    background: #141924;
+  }
 }

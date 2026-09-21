@@ -24,6 +24,7 @@ export type DaemonMsg =
   | { t: 'session.list.result'; reqId: number; sessions: SessionInfo[] }
   | { t: 'session.created'; reqId: number; sessionId: string }
   | { t: 'session.attached'; reqId: number; sessionId: string }
+  | { t: 'session.killed'; reqId: number; sessionId: string }
   | { t: 'output'; sessionId: string; seq: number; data: string }
   | { t: 'snapshot'; sessionId: string; seq: number; data: string }
   | { t: 'session.exited'; sessionId: string; exitCode: number | null }

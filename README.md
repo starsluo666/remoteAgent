@@ -43,7 +43,7 @@ cd web && node scripts/smoke-ws.mjs ws://127.0.0.1:8080/ws <deviceId> <token>   
 - [x] M1 本地全链路（PTY ↔ xterm.js，不经中继）
 - [x] M2 中继 + 出站连接
 - [x] M3 端到端加密 + token 分离（TLS 部署项顺延：自托管公网暴露时启用）
-- [ ] M4 多 session + 设备列表
+- [x] M4 多 session + 设备列表
 - [ ] M5 手动接管 / 暂停
 - [ ] M6 稳定性（重连 / scrollback / 移动端触控）
 - [ ] M7 AI session 识别 + Quick Chips

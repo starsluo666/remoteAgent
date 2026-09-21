@@ -149,6 +149,24 @@ func (h *hub) forward(from *conn, raw []byte) {
 	}
 }
 
+// listDevices：在线设备状态（仅元数据：deviceId / 在线 / 观看者数）。
+// 不含任何 token；客户端用它渲染设备列表侧栏。
+func (h *hub) listDevices() []map[string]any {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := make([]map[string]any, 0, len(h.rooms))
+	for id, r := range h.rooms {
+		r.mu.Lock()
+		out = append(out, map[string]any{
+			"deviceId": id,
+			"online":   r.daemon != nil,
+			"viewers":  len(r.clients),
+		})
+		r.mu.Unlock()
+	}
+	return out
+}
+
 // unregister：连接断开时清理；daemon 离线要广播 presence。
 func (h *hub) unregister(c *conn) {
 	h.mu.Lock()

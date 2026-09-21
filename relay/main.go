@@ -21,6 +21,13 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"ok":true,"name":"remoteagent-relay","proto":1}`))
 }
 
+func handleDevices(h *hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(h.listDevices())
+	}
+}
+
 func handleWS(h *hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ws, err := upgrader.Upgrade(w, r, nil)
@@ -128,6 +135,7 @@ func main() {
 	h := newHub()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/api/devices", handleDevices(h))
 	mux.HandleFunc("/ws", handleWS(h))
 
 	if *webDir != "" {

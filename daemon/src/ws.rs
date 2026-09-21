@@ -206,8 +206,7 @@ pub(crate) fn handle_msg(
                     if let Err(e) = s.kill() {
                         tracing::debug!(session = %session_id, error = %e, "kill (may already be dead)");
                     }
-                    let _ = req_id;
-                    vec![]
+                    vec![DaemonMsg::SessionKilled { req_id, session_id }]
                 }
                 None => vec![DaemonMsg::Error {
                     req_id: Some(req_id),
