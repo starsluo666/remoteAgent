@@ -60,10 +60,12 @@
 ```jsonc
 { "t": "session.list",  "reqId": 1 }
 { "t": "session.create","reqId": 2, "cols": 120, "rows": 32, "cwd": "/home/me/proj", "cmd": "claude" }
-{ "t": "session.kill",  "reqId": 3, "sessionId": "s_abc" }
+{ "t": "session.attach","reqId": 3, "sessionId": "s_abc" }
+{ "t": "session.kill",  "reqId": 4, "sessionId": "s_abc" }
 ```
 
 - `cmd` 缺省 = 用户默认 shell；`cwd` 缺省 = 用户主目录。
+- `session.attach`：订阅该 session 的实时输出。daemon 回 `session.attached` 并**紧随一条 `snapshot`**（当前环形缓冲全量）。重连恢复、多端镜像补画面都走这一条路径。
 
 ### client → daemon：I/O
 
@@ -80,8 +82,9 @@
                   "agent": { "kind": "claude-code", "state": "working" } } ] }
 
 { "t": "session.created", "reqId": 2, "sessionId": "s_abc" }
+{ "t": "session.attached", "reqId": 3, "sessionId": "s_abc" }
 { "t": "output",  "sessionId": "s_abc", "seq": 42, "data": "<base64>" }
-{ "t": "snapshot","sessionId": "s_abc", "seq": 43, "data": "<base64>" }   // 全量回放
+{ "t": "snapshot","sessionId": "s_abc", "seq": 43, "data": "<base64>" }   // attach 时全量回放
 { "t": "session.exited", "sessionId": "s_abc", "exitCode": 0 }
 { "t": "agent.state", "sessionId": "s_abc", "kind": "claude-code",
   "state": "idle" | "working" | "waiting", "since": 1695200123 }          // M7 预留
@@ -92,7 +95,7 @@
 
 - `output.seq` 从 1 严格递增（每 session 独立）；client 用于检测丢帧。
 - daemon 为每个 session 维护 **200KB 环形缓冲**（已解码的字节流）。
-- 新 client 加入 / client 重连成功时，daemon 主动推一条 `snapshot`（当前缓冲全量），随后继续 `output`。
+- 客户端 `session.attach` 后 daemon 主动推一条 `snapshot`（当前缓冲全量），随后继续 `output`。
   这一份机制同时满足：断线重连恢复画面、多端镜像新加入者补画面。
 
 ## 5. 加密信封（M3 预留，先定形后启用）

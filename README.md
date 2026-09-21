@@ -30,8 +30,8 @@ cd web && npm install && npm run dev
 
 ## 路线（v0.1）
 
-- [ ] M0 骨架 + 协议
-- [ ] M1 本地全链路（PTY ↔ xterm.js，不经中继）
+- [x] M0 骨架 + 协议
+- [x] M1 本地全链路（PTY ↔ xterm.js，不经中继）
 - [ ] M2 中继 + 出站连接
 - [ ] M3 TLS + token 分离 + 端到端加密
 - [ ] M4 多 session + 设备列表
