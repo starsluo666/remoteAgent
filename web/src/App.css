@@ -2669,3 +2669,66 @@ button:disabled {
 .term-wrap:has(.mobile-bar) .term-holder {
   bottom: 64px;
 }
+
+/* ── M6：断线横幅 / 触摸滚动 / 字号键 ────────── */
+.conn-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: rgba(245, 181, 68, 0.1);
+  border-bottom: 1px solid rgba(245, 181, 68, 0.3);
+  color: var(--amber);
+  font-size: 12.5px;
+}
+.conn-banner .dot.wait {
+  background: var(--amber);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.conn-banner .dot.off {
+  background: var(--red);
+}
+.cb-attempts {
+  color: var(--text-3);
+}
+.cb-retry {
+  margin-left: auto;
+  padding: 4px 12px;
+  border-radius: 7px;
+  border: 1px solid rgba(245, 181, 68, 0.45);
+  background: transparent;
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.cb-retry:hover {
+  background: rgba(245, 181, 68, 0.15);
+}
+
+/* 移动端触摸滚动（终端区允许纵向手势） */
+.term-holder .xterm .xterm-viewport {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mb-key.font {
+  font-size: 11px;
+  width: 42px;
+  color: var(--accent);
+}
+
+.set-select {
+  flex: none;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-hi);
+  background: var(--card-hi);
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+}

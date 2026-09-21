@@ -102,6 +102,9 @@ export default function TerminalApp() {
   const [toast, setToast] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const savedConnRef = useRef(false);
+  // 断线重连：尝试计数（横幅显示 + 指数退避）
+  const attemptsRef = useRef(0);
+  const [attempts, setAttempts] = useState(0);
   // 观察/接管：观察模式拦截键盘输入（防误触打断 AI）；触屏设备默认观察
   const isTouch = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
   const [takeover, setTakeover] = useState(!isTouch);
@@ -132,6 +135,22 @@ export default function TerminalApp() {
     sendRaw(line + '\r');
     setMobileInput('');
   }, [mobileInput, sendRaw]);
+
+  /** 字号实时调节（移动栏 A-/A+）：写入偏好并对全部已开终端即时生效 + 重算尺寸 */
+  const adjustFont = useCallback((delta: number) => {
+    const next = Math.min(22, Math.max(10, (Number(localStorage.getItem('ra.termFontSize')) || 14) + delta));
+    localStorage.setItem('ra.termFontSize', String(next));
+    for (const { term, fit } of termsRef.current.values()) {
+      term.options.fontSize = next;
+      fit.fit();
+    }
+    const sid = activeRef.current;
+    const conn = connRef.current;
+    const entry = sid ? termsRef.current.get(sid) : null;
+    if (conn && sid && entry) {
+      conn.send({ t: 'resize', sessionId: sid, cols: entry.term.cols, rows: entry.term.rows });
+    }
+  }, []);
 
   const refetchSessions = useCallback(async (conn: DaemonConnection) => {
     const m = await conn.request({ t: 'session.list' });
@@ -225,8 +244,14 @@ export default function TerminalApp() {
 
     const conn = new DaemonConnection(t.url, t.hello, {
       onStatus: (s) => {
-        setStatus(s);
+        setStatus((prev) => {
+          // 断→通转换时提示恢复（首次连接不打扰）
+          if (prev === 'disconnected' && s === 'ready') showToast('连接已恢复，会话画面自动同步');
+          return s;
+        });
         if (s === 'ready') {
+          attemptsRef.current = 0;
+          setAttempts(0);
           bootstrapRef.current();
           // 连接成功后记住这次配对，连接页可一键重连
           if (!savedConnRef.current) {
@@ -247,7 +272,11 @@ export default function TerminalApp() {
         }
         if (s === 'disconnected') {
           setDeviceOnline(true);
-          retryTimer = window.setTimeout(() => connRef.current?.connect(), 2000);
+          // 指数退避 1s→10s；手机后台冻结计时器，靠 visibilitychange 兜底立即重试
+          attemptsRef.current += 1;
+          setAttempts(attemptsRef.current);
+          const delay = Math.min(1000 * 2 ** (attemptsRef.current - 1), 10000);
+          retryTimer = window.setTimeout(() => connRef.current?.connect(), delay);
         }
       },
       onPresence: (_id, online) => setDeviceOnline(online),
@@ -313,7 +342,14 @@ export default function TerminalApp() {
     });
     ro.observe(wrapRef.current);
 
+    // 手机后台会冻结重连计时器：回到前台立即补一次连接尝试
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') connRef.current?.connect();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     return () => {
+      document.removeEventListener('visibilitychange', onVisible);
       window.clearTimeout(retryTimer);
       window.clearTimeout(toastTimer.current);
       window.clearInterval(deviceTimer);
@@ -352,6 +388,7 @@ export default function TerminalApp() {
         const term = new Terminal({
           fontFamily: '"JetBrains Mono", "Cascadia Mono", Consolas, "Courier New", monospace',
           fontSize: Number(localStorage.getItem('ra.termFontSize')) || 14,
+          scrollback: Number(localStorage.getItem('ra.termScrollback')) || 5000,
           cursorBlink: true,
           theme: termTheme,
         });
@@ -536,6 +573,20 @@ export default function TerminalApp() {
           </div>
         </header>
 
+        {/* 断线横幅：明确告知输出已暂停，并提供手动重连（自动退避仍在进行） */}
+        {status === 'disconnected' && (
+          <div className="conn-banner">
+            <span className={`dot ${statusBadge.cls}`} />
+            <span>
+              连接已断开，正在重连…
+              {attempts > 1 && <span className="cb-attempts">（第 {attempts} 次尝试）</span>}
+            </span>
+            <button className="cb-retry" onClick={() => connRef.current?.reconnect()}>
+              立即重连
+            </button>
+          </div>
+        )}
+
         <nav className="tabs">
           {sessions.map((s) => {
             const e = termsRef.current.get(s.id);
@@ -658,6 +709,12 @@ export default function TerminalApp() {
               </button>
               <button className="mb-key" title="↓" onClick={() => sendRaw('\x1b[B')}>
                 ↓
+              </button>
+              <button className="mb-key font" title="减小字号" onClick={() => adjustFont(-1)}>
+                A－
+              </button>
+              <button className="mb-key font" title="增大字号" onClick={() => adjustFont(1)}>
+                A＋
               </button>
               <input
                 className="mb-input"

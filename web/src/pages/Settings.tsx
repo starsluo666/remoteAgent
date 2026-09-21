@@ -163,9 +163,17 @@ export default function SettingsPage({ local }: { local: LocalInfo }) {
               <div className="set-row">
                 <div>
                   <div className="set-name">回滚行数</div>
-                  <div className="set-desc">服务端环形缓冲 200KB</div>
+                  <div className="set-desc">每会话保留的历史输出行数 —— 新开的终端标签生效</div>
                 </div>
-                <span className="soon-pill">可调即将支持</span>
+                <select
+                  className="set-select"
+                  value={localStorage.getItem('ra.termScrollback') ?? '5000'}
+                  onChange={(e) => localStorage.setItem('ra.termScrollback', e.target.value)}
+                >
+                  <option value="1000">1000 行</option>
+                  <option value="5000">5000 行</option>
+                  <option value="10000">10000 行</option>
+                </select>
               </div>
             </div>
           )}
