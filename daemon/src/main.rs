@@ -79,6 +79,7 @@ async fn main() -> anyhow::Result<()> {
     let app = axum::Router::new()
         .route("/api/local", axum::routing::get(local_info))
         .route("/api/local/relay", axum::routing::post(set_relay))
+        .route("/api/sessions", axum::routing::get(list_sessions))
         .route("/ws", axum::routing::get(ws::handle_ws))
         .with_state(state)
         .fallback_service(ServeDir::new(web_dist));
@@ -102,6 +103,14 @@ async fn local_info(
         "relayOnline": relay.online,
         "relayNote": relay.note,
     }))
+}
+
+/// 本机会话列表（概览/Sessions 页轮询用）
+async fn list_sessions(
+    axum::extract::State(state): axum::extract::State<ws::AppState>,
+) -> axum::Json<serde_json::Value> {
+    let sessions: Vec<crate::protocol::SessionInfo> = state.sessions.list();
+    axum::Json(serde_json::json!({ "sessions": sessions }))
 }
 
 #[derive(serde::Deserialize)]
