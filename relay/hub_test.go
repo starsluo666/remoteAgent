@@ -9,7 +9,7 @@ func fakeConn() *conn {
 }
 
 func TestRegisterAndDuplicate(t *testing.T) {
-	h := newHub()
+	h := newHub("")
 	d := fakeConn()
 	if ack := h.registerDaemon("dev1", "key1", d); isErr(ack) {
 		t.Fatalf("first register should succeed: %s", ack)
@@ -26,7 +26,7 @@ func TestRegisterAndDuplicate(t *testing.T) {
 }
 
 func TestJoinClientRequiresOnlineDaemon(t *testing.T) {
-	h := newHub()
+	h := newHub("")
 	c := fakeConn()
 	if ack := h.joinClient("dev-none", c); !isErr(ack) {
 		t.Fatalf("join to missing room should fail, got: %s", ack)
@@ -45,7 +45,7 @@ func TestJoinClientRequiresOnlineDaemon(t *testing.T) {
 }
 
 func TestKickClientsClearsViewers(t *testing.T) {
-	h := newHub()
+	h := newHub("")
 	d := fakeConn()
 	h.registerDaemon("dev1", "k", d)
 	c := fakeConn()
@@ -66,5 +66,17 @@ func TestKickClientsClearsViewers(t *testing.T) {
 		}
 	default:
 		t.Fatal("kicked viewer should have received a message")
+	}
+}
+
+func TestRegisterRequiresExpectedKey(t *testing.T) {
+	h := newHub("secret-key")
+	d := fakeConn()
+	if ack := h.registerDaemon("dev1", "wrong", d); !isErr(ack) {
+		t.Fatalf("wrong key must be rejected, got: %s", ack)
+	}
+	// 正确密钥可注册；校验失败不占房
+	if ack := h.registerDaemon("dev1", "secret-key", d); isErr(ack) {
+		t.Fatalf("correct key should register: %s", ack)
 	}
 }

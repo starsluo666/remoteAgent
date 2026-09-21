@@ -1,6 +1,7 @@
 //! 本地模式 WS 服务：/ws 处理协议消息，静态托管 web/dist。
 //! M2 起本模块的角色变为"到中继的出站连接"，消息处理逻辑保持复用。
 
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -22,6 +23,8 @@ pub struct AppState {
     pub identity: Arc<crate::config::Identity>,
     /// 中继连接任务句柄（启动/停止由本地面板与 CLI 驱动）
     pub relay: Arc<std::sync::Mutex<RelayCtl>>,
+    /// 本地 ws 单连接占用（v0.1 单 viewer 语义：本地与远程不并行抢输出）
+    pub local_busy: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// 本机共享状态：身份只读，中继状态可变（连接/断开/重试时更新）
@@ -113,7 +116,23 @@ pub async fn handle_ws(ws: WebSocketUpgrade, State(state): State<AppState>) -> R
 }
 
 async fn handle_socket(socket: WebSocket, state: AppState) {
-    if let Err(e) = handle_socket_inner(socket, state).await {
+    // 单连接占用：CAS 失败即拒绝（对齐中继侧 device_busy 语义）
+    if state
+        .local_busy
+        .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+        .is_err()
+    {
+        let err = serde_json::json!({
+            "t": "error", "code": "local_busy",
+            "msg": "another local viewer is already connected",
+        });
+        let mut socket = socket;
+        let _ = socket.send(Message::Text(err.to_string().into())).await;
+        return;
+    }
+    let result = handle_socket_inner(socket, state.clone()).await;
+    state.local_busy.store(false, Ordering::Release);
+    if let Err(e) = result {
         tracing::warn!(error = %e, "ws connection ended with error");
     }
 }
@@ -179,9 +198,9 @@ async fn handle_socket_inner(mut socket: WebSocket, state: AppState) -> anyhow::
             evt = rx.recv() => {
                 let Some((sid, evt)) = evt else { break };
                 let msg = match evt {
-                    SessionEvent::Output(chunk) => DaemonMsg::Output {
+                    SessionEvent::Output(chunk, seq) => DaemonMsg::Output {
                         session_id: sid.clone(),
-                        seq: 0, // 由客户端按到达顺序消费；真实 seq 在 M3 加密信封时启用
+                        seq,
                         data: STANDARD.encode(chunk),
                     },
                     SessionEvent::Exited(code) => {

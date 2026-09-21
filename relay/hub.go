@@ -68,16 +68,21 @@ type room struct {
 }
 
 type hub struct {
-	mu    sync.Mutex
-	rooms map[string]*room
+	mu      sync.Mutex
+	rooms   map[string]*room
+	relayKey string // 期望的 daemon relay_key；空 = 不校验（仅本地开发）
 }
 
-func newHub() *hub {
-	return &hub{rooms: make(map[string]*room)}
+func newHub(expectedKey string) *hub {
+	return &hub{rooms: make(map[string]*room), relayKey: expectedKey}
 }
 
 // registerDaemon：daemon 出站注册。房间已有在线 daemon 时拒绝。
+// 配置了 expected relay_key 时强制校验（防伪造 daemon 抢注任意 deviceId）。
 func (h *hub) registerDaemon(deviceID, token string, c *conn) []byte {
+	if h.relayKey != "" && token != h.relayKey {
+		return errPayload("auth_failed", "relay key mismatch")
+	}
 	h.mu.Lock()
 	r, ok := h.rooms[deviceID]
 	if !ok {

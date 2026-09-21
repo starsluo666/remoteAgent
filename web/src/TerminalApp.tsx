@@ -90,6 +90,8 @@ export default function TerminalApp() {
   // 终端 DOM 挂载前到达的快照/输出缓冲：attach 回执往往快于 React 渲染，
   // 丢弃会导致本地直连（低延迟）下终端空白
   const pendingRef = useRef<Map<string, Uint8Array[]>>(new Map());
+  // 按 session 的输出序号（防中继重放/乱序注入；快照重置基线）
+  const lastSeqRef = useRef<Map<string, number>>(new Map());
 
   const t = useMemo(() => target(), []);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -225,7 +227,8 @@ export default function TerminalApp() {
         }
       },
       onPresence: (_id, online) => setDeviceOnline(online),
-      onSnapshot: (sid, data) => {
+      onSnapshot: (sid, data, seq) => {
+        lastSeqRef.current.set(sid, seq); // 快照即基线，之后的 output 必须严格大于
         const entry = termsRef.current.get(sid);
         if (!entry) {
           pendingRef.current.set(sid, [data]); // 快照整块替换语义，覆盖旧缓冲
@@ -234,7 +237,11 @@ export default function TerminalApp() {
         entry.term.reset();
         entry.term.write(data);
       },
-      onOutput: (sid, data) => {
+      onOutput: (sid, data, seq) => {
+        // 重放/乱序防护：seq 不大于已见最大值即丢弃
+        const last = lastSeqRef.current.get(sid);
+        if (last !== undefined && seq <= last) return;
+        lastSeqRef.current.set(sid, seq);
         const entry = termsRef.current.get(sid);
         if (!entry) {
           const buf = pendingRef.current.get(sid) ?? [];
@@ -252,7 +259,12 @@ export default function TerminalApp() {
         if (conn) void refetchSessions(conn);
       },
       onError: (code, msg) => {
-        if (code === 'auth_failed' || code === 'device_busy' || code === 'decrypt_failed') {
+        if (
+          code === 'auth_failed' ||
+          code === 'device_busy' ||
+          code === 'local_busy' ||
+          code === 'decrypt_failed'
+        ) {
           connRef.current?.close();
         }
         const entry = activeRef.current ? termsRef.current.get(activeRef.current) : null;

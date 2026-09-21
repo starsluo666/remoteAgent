@@ -131,9 +131,9 @@ async fn connect_and_run(
             evt = rx.recv() => {
                 let Some((sid, evt)) = evt else { break };
                 let msg = match evt {
-                    SessionEvent::Output(chunk) => DaemonMsg::Output {
+                    SessionEvent::Output(chunk, seq) => DaemonMsg::Output {
                         session_id: sid.clone(),
-                        seq: 0,
+                        seq,
                         data: STANDARD.encode(chunk),
                     },
                     SessionEvent::Exited(code) => {

@@ -153,9 +153,17 @@ func isErr(b []byte) bool {
 func main() {
 	listen := flag.String("listen", "0.0.0.0:8080", "listen address")
 	webDir := flag.String("web", "../web/dist", "web client dist dir (empty to disable)")
+	// 公网必配：daemon 注册密钥白名单（防伪造 daemon 抢注设备房间把真设备锁在门外）。
+	// 留空 = 不校验（仅限本地/内网开发）；也可用环境变量 REMOTEAGENT_RELAY_KEY。
+	expectedKey := flag.String("relay-key", os.Getenv("REMOTEAGENT_RELAY_KEY"), "expected daemon relay key (required for public deploy)")
 	flag.Parse()
 
-	h := newHub()
+	h := newHub(*expectedKey)
+	if *expectedKey != "" {
+		log.Printf("relay-key allowlist enabled")
+	} else {
+		log.Printf("WARNING: relay-key not set — any daemon can register any deviceId (fine for localhost, NOT for public deploy)")
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/api/devices", handleDevices(h))

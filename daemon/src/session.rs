@@ -18,7 +18,7 @@ const READ_BUF: usize = 32 * 1024;
 pub type EventTx = UnboundedSender<(String, SessionEvent)>;
 
 pub enum SessionEvent {
-    Output(Vec<u8>),
+    Output(Vec<u8>, u64),
     Exited(Option<u32>),
 }
 
@@ -26,7 +26,9 @@ pub struct Session {
     pub id: String,
     pub cmd: String,
     pub started_at: i64,
-    master: Mutex<Box<dyn MasterPty + Send>>,
+    // Option：kill/退出后 take+drop 关闭 ConPTY master，让 reader 线程的阻塞读
+    // 返回 EOF 自然退出（否则 Windows 上 conhost 挂着读句柄，线程+句柄泄漏）
+    master: Mutex<Option<Box<dyn MasterPty + Send>>>,
     writer: Mutex<Box<dyn Write + Send>>,
     child: Mutex<Box<dyn Child + Send + Sync>>,
     ring: Mutex<VecDeque<u8>>,
@@ -45,15 +47,24 @@ impl Session {
     }
 
     pub fn resize(&self, cols: u16, rows: u16) -> Result<()> {
-        self.master
-            .lock()
-            .unwrap()
+        let guard = self.master.lock().unwrap();
+        let master = guard.as_ref().context("pty already closed")?;
+        master
             .resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
             .context("pty resize")
     }
 
     pub fn kill(&self) -> Result<()> {
-        self.child.lock().unwrap().kill().context("pty kill")
+        let r = self.child.lock().unwrap().kill().context("pty kill");
+        self.close_pty();
+        r
+    }
+
+    /// 关闭 ConPTY master（幂等）：唤醒阻塞中的 reader 线程，回收句柄
+    fn close_pty(&self) {
+        if let Some(master) = self.master.lock().unwrap().take() {
+            drop(master);
+        }
     }
 
     pub fn set_subscriber(&self, tx: EventTx) {
@@ -124,7 +135,7 @@ impl SessionManager {
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0),
-            master: Mutex::new(pair.master),
+            master: Mutex::new(Some(pair.master)),
             writer: Mutex::new(writer),
             child: Mutex::new(child),
             ring: Mutex::new(VecDeque::new()),
@@ -155,6 +166,8 @@ impl SessionManager {
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
             info!(session = %sid_wait, ?exit_code, "session exited");
+            // 进程退出后关闭 master：唤醒可能仍阻塞在 read 上的 reader 线程（句柄回收）
+            sess.close_pty();
             if let Some(tx) = sess.subscriber.lock().unwrap().as_ref() {
                 let _ = tx.send((sid_wait, SessionEvent::Exited(exit_code)));
             }
@@ -172,9 +185,9 @@ impl SessionManager {
                     Ok(n) => {
                         let chunk = buf[..n].to_vec();
                         sess.push_ring(&chunk);
-                        sess.seq.fetch_add(1, Ordering::SeqCst);
+                        let seq = sess.seq.fetch_add(1, Ordering::SeqCst) + 1;
                         if let Some(tx) = sess.subscriber.lock().unwrap().as_ref() {
-                            let _ = tx.send((sid.clone(), SessionEvent::Output(chunk)));
+                            let _ = tx.send((sid.clone(), SessionEvent::Output(chunk, seq)));
                         }
                     }
                     Err(e) => {

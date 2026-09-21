@@ -60,6 +60,7 @@ async fn main() -> anyhow::Result<()> {
         )),
         identity: Arc::new(identity.clone()),
         relay: Arc::new(std::sync::Mutex::new(ws::RelayCtl::stopped())),
+        local_busy: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     };
 
     if let Some(url) = relay_start {
@@ -94,13 +95,32 @@ async fn main() -> anyhow::Result<()> {
         .route("/ws", axum::routing::get(ws::handle_ws))
         .with_state(state)
         .fallback_service(ServeDir::new(web_dist))
-        .layer(axum::middleware::from_fn(guard_local_host));
+        .layer(axum::middleware::from_fn(guard_local_host))
+        .layer(axum::middleware::from_fn(set_cache_headers));
 
     let addr = "127.0.0.1:9800";
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "daemon local panel at http://{addr}");
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+/// 静态资源缓存策略：index.html 永远回源校验（避免拿到旧前端），带哈希的 assets 长缓存
+async fn set_cache_headers(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let path = req.uri().path().to_string();
+    let mut res = next.run(req).await;
+    let cache = if path.starts_with("/assets/") {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    };
+    if let Ok(v) = cache.parse() {
+        res.headers_mut().insert(axum::http::header::CACHE_CONTROL, v);
+    }
+    res
 }
 
 /// 仅放行本机来源的 Host 头（防 DNS rebinding 读取本地 API / 直连本地 ws）
