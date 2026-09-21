@@ -1,7 +1,6 @@
 // 连接目标解析：终端模式（远程中继 / 本地直连）的判定。
-// - ?relay=ws%3A%2F%2Fhost%3A8080%2Fws&device=<id>&token=<t> → 中继模式（显式指定中继）
-// - ?device=<id>&token=<t>（页面由中继托管时）→ 同源 /ws
-// - ?local=1 → 本地模式（daemon 直连）
+// - #relay=…&device=<id>&token=<t>（或旧式 ?query，token 不发给服务器，推荐 fragment）
+// - ?local=1 / #local=1 → 本地模式（daemon 直连）
 // - 无参数 → null（本机桌面应用 / 连接页）
 
 import type { HelloFields } from './daemon';
@@ -12,8 +11,28 @@ export interface Target {
   mode: string;
 }
 
-export function target(): Target | null {
+/** 合并 query 与 hash 参数（query 优先，兼容旧链接；fragment 按 HTTP 规范不上行，token 走这里） */
+export function mergedParams(): URLSearchParams {
   const q = new URLSearchParams(location.search);
+  const h = new URLSearchParams(location.hash.replace(/^#/, ''));
+  for (const [k, v] of h) {
+    if (!q.has(k)) q.set(k, v);
+  }
+  return q;
+}
+
+/** 从 URL 文本提取合并参数（解析配对链接用，同样兼容 query/hash 两种格式） */
+export function paramsOf(u: URL): URLSearchParams {
+  const merged = new URLSearchParams(u.search);
+  const h = new URLSearchParams(u.hash.replace(/^#/, ''));
+  for (const [k, v] of h) {
+    if (!merged.has(k)) merged.set(k, v);
+  }
+  return merged;
+}
+
+export function target(): Target | null {
+  const q = mergedParams();
   const device = q.get('device');
   const token = q.get('token') ?? undefined;
   const relay = q.get('relay');

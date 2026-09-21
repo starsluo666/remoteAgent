@@ -149,6 +149,28 @@ func (h *hub) forward(from *conn, raw []byte) {
 	}
 }
 
+// kickClients：daemon 请求断开房间里全部 viewer（未认证超时防抢占）。
+// 房间与 daemon 连接保留，新的合法 viewer 可立即加入。
+func (h *hub) kickClients(deviceID string) {
+	h.mu.Lock()
+	r, ok := h.rooms[deviceID]
+	h.mu.Unlock()
+	if !ok {
+		return
+	}
+	r.mu.Lock()
+	clients := make([]*conn, 0, len(r.clients))
+	for c := range r.clients {
+		clients = append(clients, c)
+	}
+	r.mu.Unlock()
+	for _, c := range clients {
+		c.sendMsg(errPayload("kicked", "viewer kicked by device"))
+		c.shutdown()
+	}
+	log.Printf("kicked viewers device=%s n=%d", deviceID, len(clients))
+}
+
 // listDevices：在线设备状态（仅元数据：deviceId / 在线 / 观看者数）。
 // 不含任何 token；客户端用它渲染设备列表侧栏。
 func (h *hub) listDevices() []map[string]any {

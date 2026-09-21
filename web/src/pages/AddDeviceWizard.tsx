@@ -22,8 +22,9 @@ export default function AddDeviceWizard({ local, onClose }: { local: LocalInfo; 
 
   const relayOk = !!local.relayUrl;
   const relayWeb = local.relayUrl ? `${relayHttpBase(local.relayUrl)}/` : null;
+  // fragment 格式：token 不随 HTTP 请求发给中继（不进访问日志）
   const pairUrl = relayWeb && local.deviceId
-    ? `${relayWeb}?device=${local.deviceId}&token=${local.accessToken}`
+    ? `${relayWeb}#device=${local.deviceId}&token=${local.accessToken}`
     : null;
 
   useEffect(() => {

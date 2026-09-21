@@ -2,6 +2,7 @@
 // 接入方式：粘贴配对链接（智能解析）/ 浏览中继设备列表 / 最近连接一键重连。
 
 import { useEffect, useState } from 'react';
+import { paramsOf } from './lib/target';
 
 export interface SavedConn {
   url: string; // 完整配对 href（含 query），重连直接跳转
@@ -38,13 +39,14 @@ export interface PairFields {
   token: string;
 }
 
-/** 解析配对链接文本；识别失败返回 null */
+/** 解析配对链接文本（query 或 fragment 格式）；识别失败返回 null */
 export function parsePairText(text: string): PairFields | null {
   const t = text.trim();
   try {
     const u = new URL(t);
-    const device = u.searchParams.get('device');
-    const token = u.searchParams.get('token');
+    const p = paramsOf(u);
+    const device = p.get('device');
+    const token = p.get('token');
     if (!device || !token) return null;
     const relay =
       u.origin === location.origin
@@ -75,7 +77,8 @@ export function buildHref(f: PairFields): string {
   if (f.relay) q.set('relay', f.relay);
   q.set('device', f.device);
   q.set('token', f.token);
-  return `${location.origin}${location.pathname}?${q.toString()}`;
+  // fragment 格式：凭据不随 HTTP 请求发给服务器（不进中继/反代访问日志）
+  return `${location.origin}${location.pathname}#${q.toString()}`;
 }
 
 function timeAgo(ts: number): string {

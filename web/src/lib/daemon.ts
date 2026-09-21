@@ -27,6 +27,7 @@ export class DaemonConnection {
   private reqId = 0;
   private pending = new Map<number, (m: DaemonMsg) => void>();
   private disposed = false;
+  private keepalive: number | undefined;
   private url: string;
   private hello: HelloFields;
   private h: DaemonHandlers;
@@ -53,6 +54,12 @@ export class DaemonConnection {
         deviceId: this.hello.deviceId,
         ...(this.hello.token ? { token: this.hello.token } : {}),
       });
+      // 应用层保活：维持 NAT 映射，同时让半开连接尽早暴露（onclose 触发重连）
+      window.clearInterval(this.keepalive);
+      this.keepalive = window.setInterval(() => {
+        if (this.ws?.readyState !== WebSocket.OPEN) return;
+        this.ws.send(JSON.stringify({ t: 'ping' }));
+      }, 25000);
     };
     ws.onmessage = (ev) => {
       try {
@@ -62,6 +69,7 @@ export class DaemonConnection {
       }
     };
     ws.onclose = () => {
+      window.clearInterval(this.keepalive);
       // 只在该 socket 仍是当前 socket 时通知（reconnect() 换新后旧 socket 的关闭不算掉线）
       if (this.ws !== ws) return;
       this.pending.clear(); // 悬挂的请求不再有应答，调用方等待被新连接的 bootstrap 取代
@@ -163,6 +171,7 @@ export class DaemonConnection {
 
   close(): void {
     this.disposed = true;
+    window.clearInterval(this.keepalive);
     this.ws?.close();
   }
 }

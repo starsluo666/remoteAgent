@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -51,6 +52,15 @@ func readPump(h *hub, c *conn) {
 		h.unregister(c)
 		c.shutdown()
 	}()
+
+	// 防护：单帧上限 1MB（默认不限长，公网会被巨型帧 OOM）；
+	// 读超时 + pong 续期：空闲连接由对端周期 ping 保活，超时即判定死亡
+	const pongWait = 90 * time.Second
+	c.ws.SetReadLimit(1 << 20)
+	c.ws.SetReadDeadline(time.Now().Add(pongWait))
+	c.ws.SetPongHandler(func(string) error {
+		return c.ws.SetReadDeadline(time.Now().Add(pongWait))
+	})
 
 	// 握手：第一条必须是 hello v1
 	var e envelope
@@ -96,15 +106,23 @@ func readPump(h *hub, c *conn) {
 		if err != nil {
 			return
 		}
+		// 任何流量（含 ws 控制帧，pong 已由 handler 续期）都视为活跃
+		c.ws.SetReadDeadline(time.Now().Add(pongWait))
 		if t != websocket.TextMessage {
 			continue
 		}
-		// 控制层：只认 ping；其余全部按载荷转发（原样字节，不解不改）
+		// 控制层：只认 ping / kick；其余全部按载荷转发（原样字节，不解不改）
 		var probe envelope
 		if err := json.Unmarshal(raw, &probe); err == nil {
 			switch probe.T {
 			case "ping":
 				c.sendMsg(mustJSON(map[string]string{"t": "pong"}))
+				continue
+			case "kick":
+				// daemon 主动断开房间里的 viewer（未认证超时等）；只有 daemon 可发
+				if c.role == "daemon" {
+					h.kickClients(c.deviceID)
+				}
 				continue
 			case "hello":
 				continue // 已握手，忽略重复 hello

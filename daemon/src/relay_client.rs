@@ -102,11 +102,32 @@ async fn connect_and_run(
 
     let (tx, mut rx) = mpsc::unbounded_channel::<(String, SessionEvent)>();
     let mut crypto: Option<SessionCrypto> = None;
+    // 保活：周期 ping 维持 NAT/防火墙映射，配合中继读超时及时发现半开连接
+    let mut ping_tick = tokio::time::interval(std::time::Duration::from_secs(30));
+    ping_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    // 防抢占：未完成 E2E 握手的 viewer 限时请离（否则可长期占用单 viewer 槽位）；
+    // 用 interval 而非 sleep——sleep 会随每次收包重建，可被垃圾流量绕过
+    let mut auth_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+    let mut auth_check = tokio::time::interval(std::time::Duration::from_secs(5));
+    auth_check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
     'conn: loop {
         tokio::select! {
             // 停止信号：连接空闲时也能及时退出（changed 在未被消费前保持就绪）
             _ = stop.changed() => break 'conn,
+            _ = ping_tick.tick() => {
+                if sink.send(Message::Ping(Vec::new().into())).await.is_err() {
+                    break 'conn;
+                }
+            }
+            _ = auth_check.tick() => {
+                if crypto.is_none() && tokio::time::Instant::now() > auth_deadline {
+                    // 请中继断开未认证 viewer（保留 daemon↔relay 隧道），并重置窗口等下一位
+                    tracing::warn!("unauthenticated viewer timed out, requesting kick");
+                    let _ = send_plain(&mut sink, r#"{"t":"kick"}"#).await;
+                    auth_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+                }
+            }
             evt = rx.recv() => {
                 let Some((sid, evt)) = evt else { break };
                 let msg = match evt {

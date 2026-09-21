@@ -11,6 +11,7 @@ mod ws;
 
 use std::sync::Arc;
 
+use axum::response::IntoResponse;
 use tower_http::services::ServeDir;
 
 #[tokio::main]
@@ -83,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // 本地面板 + 本地直连：/api/local（身份/中继控制）+ /ws + 前端静态资源，仅 127.0.0.1
+    // Host 校验：防 DNS rebinding（恶意域名解析到 127.0.0.1 后浏览器携带其 Host 直连本地服务）
     let web_dist = concat!(env!("CARGO_MANIFEST_DIR"), "/../web/dist");
     let app = axum::Router::new()
         .route("/api/local", axum::routing::get(local_info))
@@ -91,13 +93,32 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/sessions", axum::routing::get(list_sessions))
         .route("/ws", axum::routing::get(ws::handle_ws))
         .with_state(state)
-        .fallback_service(ServeDir::new(web_dist));
+        .fallback_service(ServeDir::new(web_dist))
+        .layer(axum::middleware::from_fn(guard_local_host));
 
     let addr = "127.0.0.1:9800";
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "daemon local panel at http://{addr}");
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+/// 仅放行本机来源的 Host 头（防 DNS rebinding 读取本地 API / 直连本地 ws）
+async fn guard_local_host(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    const ALLOWED: [&str; 3] = ["127.0.0.1:9800", "localhost:9800", "[::1]:9800"];
+    let ok = req
+        .headers()
+        .get(axum::http::header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .is_some_and(|h| ALLOWED.contains(&h));
+    if ok {
+        next.run(req).await
+    } else {
+        (axum::http::StatusCode::FORBIDDEN, "host not allowed").into_response()
+    }
 }
 
 /// 本地面板信息（仅 127.0.0.1）：设备身份 + 中继状态（含 viewers / 配置列表）
