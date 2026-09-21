@@ -129,6 +129,9 @@ export default function App() {
   const hostRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const wrapRef = useRef<HTMLDivElement>(null);
   const toastTimer = useRef<number | undefined>(undefined);
+  // 终端 DOM 挂载前到达的快照/输出缓冲：attach 回执往往快于 React 渲染，
+  // 丢弃会导致本地直连（低延迟）下终端空白
+  const pendingRef = useRef<Map<string, Uint8Array[]>>(new Map());
 
   const t = useMemo(() => target(), []);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -266,14 +269,25 @@ export default function App() {
       onPresence: (_id, online) => setDeviceOnline(online),
       onSnapshot: (sid, data) => {
         const entry = termsRef.current.get(sid);
-        if (!entry) return;
+        if (!entry) {
+          pendingRef.current.set(sid, [data]); // 快照整块替换语义，覆盖旧缓冲
+          return;
+        }
         entry.term.reset();
         entry.term.write(data);
       },
       onOutput: (sid, data) => {
-        termsRef.current.get(sid)?.term.write(data);
+        const entry = termsRef.current.get(sid);
+        if (!entry) {
+          const buf = pendingRef.current.get(sid) ?? [];
+          buf.push(data);
+          pendingRef.current.set(sid, buf);
+          return;
+        }
+        entry.term.write(data);
       },
       onExited: (sid) => {
+        pendingRef.current.delete(sid);
         const entry = termsRef.current.get(sid);
         if (entry) entry.ended = true;
         const conn = connRef.current;
@@ -313,6 +327,7 @@ export default function App() {
       conn.close();
       for (const { term } of termsRef.current.values()) term.dispose();
       termsRef.current.clear();
+      pendingRef.current.clear();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -351,6 +366,12 @@ export default function App() {
         term.open(el);
         const entry: TermEntry = { term, fit, ended: false };
         termsRef.current.set(sid, entry);
+        // 回放挂载前缓冲的快照/输出（顺序即到达顺序；新终端本为空白，直接写即正确）
+        const pending = pendingRef.current.get(sid);
+        if (pending) {
+          pendingRef.current.delete(sid);
+          for (const chunk of pending) term.write(chunk);
+        }
         term.onData((d) => {
           const conn = connRef.current;
           if (conn && activeRef.current === sid && !entry.ended) {
