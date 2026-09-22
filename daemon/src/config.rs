@@ -67,6 +67,15 @@ pub fn rotate_access_token() -> Result<Identity> {
     Ok(id)
 }
 
+/// 设置自定义访问 token（用户口令，最短 8 位；长度与字符校验由调用方负责）
+pub fn set_access_token(token: &str) -> Result<Identity> {
+    let mut id = load_or_create()?;
+    id.access_token = token.to_string();
+    let path = identity_path()?;
+    fs::write(&path, serde_json::to_string_pretty(&id)?).context("write identity.json")?;
+    Ok(id)
+}
+
 /// 运行设置：界面里配置的中继列表，重启后自动恢复连接（active 指向恢复目标）
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Settings {

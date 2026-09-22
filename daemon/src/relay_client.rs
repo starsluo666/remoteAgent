@@ -19,7 +19,7 @@ use crate::ws::{handle_msg, AppState};
 
 pub async fn run_relay_mode(
     url: String,
-    identity: Identity,
+    identity: std::sync::Arc<std::sync::RwLock<Identity>>,
     state: AppState,
     mut stop: tokio::sync::watch::Receiver<bool>,
 ) {
@@ -67,7 +67,7 @@ async fn send_plain(
 
 async fn connect_and_run(
     url: &str,
-    identity: &Identity,
+    identity: &std::sync::Arc<std::sync::RwLock<Identity>>,
     state: &AppState,
     stop: &mut tokio::sync::watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -77,9 +77,11 @@ async fn connect_and_run(
 
     let (mut sink, mut stream) = ws.split();
 
+    // 连接时取身份快照（device_id/relay_key 不热更新；令牌在验证点现读）
+    let snapshot = identity.read().unwrap().clone();
     let hello = serde_json::json!({
         "t": "hello", "v": 1, "role": "daemon",
-        "deviceId": identity.device_id, "token": identity.relay_key,
+        "deviceId": snapshot.device_id, "token": snapshot.relay_key,
     });
     sink.send(Message::Text(hello.to_string().into())).await?;
 
@@ -88,7 +90,7 @@ async fn connect_and_run(
             let v: serde_json::Value = serde_json::from_str(&t)?;
             match v["t"].as_str() {
                 Some("hello_ack") => {
-                    tracing::info!(device = %identity.device_id, "registered at relay");
+                    tracing::info!(device = %snapshot.device_id, "registered at relay");
                     state.local.set_relay_note(true, "已连接");
                 }
                 Some("error") => {
@@ -212,7 +214,9 @@ async fn connect_and_run(
                 // —— 认证门（auth.proof 任意时刻可重新握手）——
                 match client_msg {
                     ClientMsg::AuthProof { pub_key, mac } => {
-                        match Handshake::verify_client(&identity.access_token, &pub_key, &mac) {
+                        // 令牌每次握手现读：自定义令牌热更新即刻生效（旧配对立即失效）
+                        let token = identity.read().unwrap().access_token.clone();
+                        match Handshake::verify_client(&token, &pub_key, &mac) {
                             Ok((hs, reply)) => {
                                 if send_plain(&mut sink, &reply).await.is_err() {
                                     break 'conn;

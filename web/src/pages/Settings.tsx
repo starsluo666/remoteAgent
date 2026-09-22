@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { copyText } from '../lib/clipboard';
+import { localApi } from '../lib/local';
 import type { LocalInfo } from './types';
 
 type Cat = 'general' | 'appearance' | 'ai' | 'terminal' | 'about';
@@ -22,6 +23,35 @@ export default function SettingsPage({ local }: { local: LocalInfo }) {
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState(() => Number(localStorage.getItem(FONT_KEY)) || 14);
+  const [editingToken, setEditingToken] = useState(false);
+  const [newToken, setNewToken] = useState('');
+  const [tokenBusy, setTokenBusy] = useState(false);
+  const [tokenMsg, setTokenMsg] = useState<string | null>(null);
+
+  const saveToken = async () => {
+    const t = newToken.trim();
+    if (t.length < 8 || /\s/.test(t)) {
+      setTokenMsg('令牌需至少 8 位且不含空格');
+      return;
+    }
+    setTokenBusy(true);
+    setTokenMsg(null);
+    try {
+      const r = await fetch(localApi('/api/local/token'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: t }),
+      });
+      if (!r.ok) throw new Error((await r.text()) || '保存失败');
+      setEditingToken(false);
+      setNewToken('');
+      setTokenMsg('✓ 已生效 —— 旧配对链接立即失效，请用新令牌重新配对');
+    } catch (e) {
+      setTokenMsg(`保存失败：${String(e).slice(0, 80)}`);
+    } finally {
+      setTokenBusy(false);
+    }
+  };
 
   const copy = (text: string, label: string) => {
     void copyText(text).then((ok) => {
@@ -194,7 +224,7 @@ export default function SettingsPage({ local }: { local: LocalInfo }) {
               </div>
               <div className="info-row">
                 <div className="info-label">访问令牌</div>
-                <div className="info-value mono">{showToken ? local.accessToken : '•'.repeat(24)}</div>
+                <div className="info-value mono">{showToken ? local.accessToken : '•'.repeat(16)}</div>
                 <button className="mini-btn" onClick={() => setShowToken(!showToken)}>
                   {showToken ? '隐藏' : '显示'}
                 </button>
@@ -202,9 +232,53 @@ export default function SettingsPage({ local }: { local: LocalInfo }) {
                   复制
                 </button>
               </div>
+              {editingToken ? (
+                <div className="token-edit">
+                  <input
+                    className="token-input mono"
+                    value={newToken}
+                    onChange={(e) => {
+                      setNewToken(e.target.value);
+                      setTokenMsg(null);
+                    }}
+                    placeholder="新令牌（至少 8 位，建议大小写 + 数字混合）"
+                    spellCheck={false}
+                    autoFocus
+                  />
+                  <div className="token-edit-actions">
+                    <button className="primary-btn" disabled={tokenBusy} onClick={() => void saveToken()}>
+                      {tokenBusy ? '保存中…' : '保存'}
+                    </button>
+                    <button
+                      className="mini-btn"
+                      onClick={() => {
+                        setEditingToken(false);
+                        setNewToken('');
+                        setTokenMsg(null);
+                      }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="set-row">
+                  <div>
+                    <div className="set-name">自定义令牌</div>
+                    <div className="set-desc">
+                      换成自己好记的口令（≥8 位）。修改后所有已配对设备需用新令牌重新配对；
+                      建议大小写 + 数字混合 —— 弱口令存在被离线爆破的风险
+                    </div>
+                  </div>
+                  <button className="mini-btn accent" onClick={() => setEditingToken(true)}>
+                    修改令牌
+                  </button>
+                </div>
+              )}
+              {tokenMsg && <div className="relay-hint">{tokenMsg}</div>}
               <div className="relay-hint">
-                令牌用于其他设备连接本机。轮换令牌：命令行运行{' '}
-                <code>remoteagent-daemon --rotate-access-token</code>（旧令牌立即失效，重启后生效）
+                令牌用于其他设备连接本机；也可用命令行{' '}
+                <code>remoteagent-daemon --rotate-access-token</code> 换回随机长令牌
               </div>
               {copied && <div className="relay-hint accent">{copied}</div>}
             </div>

@@ -59,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
             identity.device_id.clone(),
             identity.access_token.clone(),
         )),
-        identity: Arc::new(identity.clone()),
+        identity: Arc::new(std::sync::RwLock::new(identity.clone())),
         relay: Arc::new(std::sync::Mutex::new(ws::RelayCtl::stopped())),
         local_busy: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     };
@@ -82,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
             .relay
             .lock()
             .unwrap()
-            .start(&name, url, identity, state.clone());
+            .start(&name, url, state.identity.clone(), state.clone());
     }
 
     // 本地面板 + 本地直连：/api/local（身份/中继控制）+ /ws + 前端静态资源，仅 127.0.0.1
@@ -92,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/local", axum::routing::get(local_info))
         .route("/api/local/relay", axum::routing::post(set_relay))
         .route("/api/local/relays", axum::routing::post(manage_relays))
+        .route("/api/local/token", axum::routing::post(set_token))
         .route("/api/sessions", axum::routing::get(list_sessions))
         .route("/ws", axum::routing::get(ws::handle_ws))
         .with_state(state)
@@ -189,7 +190,7 @@ async fn local_info(
     let viewers = fetch_viewers(&relay.url, &state.local.device_id).await;
     axum::Json(serde_json::json!({
         "deviceId": state.local.device_id,
-        "accessToken": state.local.access_token,
+        "accessToken": state.local.access_token.read().unwrap().clone(),
         "relayUrl": relay.url,
         "relayName": relay.name,
         "relayOnline": relay.online,
@@ -267,6 +268,36 @@ struct RelayBody {
     url: Option<String>,
 }
 
+#[derive(serde::Deserialize)]
+struct TokenBody {
+    token: String,
+}
+
+/// 自定义访问令牌（≥8 位）：写入 identity + 热更新内存，旧配对立即失效。
+/// 注意口令强度：E2E 握手的 HMAC 证明可被离线爆破，弱口令会显著降低配对门槛
+async fn set_token(
+    axum::extract::State(state): axum::extract::State<ws::AppState>,
+    axum::Json(body): axum::Json<TokenBody>,
+) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+    let t = body.token.trim();
+    let chars: usize = t.chars().count();
+    if chars < 8 || chars > 128 {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "令牌长度需在 8–128 位之间".into(),
+        ));
+    }
+    if t.chars().any(char::is_whitespace) {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "令牌不能包含空白字符".into()));
+    }
+    let id = config::set_access_token(t)
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    *state.identity.write().unwrap() = id;
+    *state.local.access_token.write().unwrap() = t.to_string();
+    tracing::info!(len = chars, "access token updated (custom)");
+    Ok(axum::Json(serde_json::json!({ "ok": true, "note": "已生效；旧配对链接立即失效" })))
+}
+
 /// 界面配置中继：url=null 断开；url=已存或新地址则连接（持久化，重启自动恢复）
 async fn set_relay(
     axum::extract::State(state): axum::extract::State<ws::AppState>,
@@ -307,7 +338,7 @@ async fn set_relay(
                 .relay
                 .lock()
                 .unwrap()
-                .start(&name, url, (*state.identity).clone(), state.clone());
+                .start(&name, url, state.identity.clone(), state.clone());
             tracing::info!(relay = %name, "relay connect requested from panel");
         }
     }

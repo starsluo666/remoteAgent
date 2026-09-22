@@ -2986,3 +2986,33 @@ button:disabled {
   display: flex;
   gap: 9px;
 }
+
+/* 自定义令牌编辑 */
+.token-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 4px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.token-input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg, #0a0c10);
+  color: var(--text);
+  font-size: 13px;
+}
+.token-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.token-edit-actions {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}

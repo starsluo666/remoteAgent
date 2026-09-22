@@ -20,17 +20,18 @@ pub struct AppState {
     pub sessions: Arc<SessionManager>,
     /// 本机信息：/api/local 面板展示与中继控制（仅 127.0.0.1 可见）
     pub local: Arc<LocalShared>,
-    pub identity: Arc<crate::config::Identity>,
+    /// 身份可变（自定义令牌热更新，验证点每次握手现读）
+    pub identity: Arc<std::sync::RwLock<crate::config::Identity>>,
     /// 中继连接任务句柄（启动/停止由本地面板与 CLI 驱动）
     pub relay: Arc<std::sync::Mutex<RelayCtl>>,
     /// 本地 ws 单连接占用（v0.1 单 viewer 语义：本地与远程不并行抢输出）
     pub local_busy: Arc<std::sync::atomic::AtomicBool>,
 }
 
-/// 本机共享状态：身份只读，中继状态可变（连接/断开/重试时更新）
+/// 本机共享状态：身份可变（自定义令牌热更新），中继状态可变（连接/断开/重试时更新）
 pub struct LocalShared {
     pub device_id: String,
-    pub access_token: String,
+    pub access_token: std::sync::RwLock<String>,
     relay: std::sync::Mutex<RelayState>,
 }
 
@@ -55,7 +56,7 @@ impl LocalShared {
     pub fn new(device_id: String, access_token: String) -> Self {
         Self {
             device_id,
-            access_token,
+            access_token: std::sync::RwLock::new(access_token),
             relay: std::sync::Mutex::new(RelayState::default()),
         }
     }
@@ -95,8 +96,15 @@ impl RelayCtl {
         Self { stop_tx: None }
     }
 
-    /// 启动（或替换）中继任务；旧任务（若有）先被停止
-    pub fn start(&mut self, name: &str, url: String, identity: crate::config::Identity, state: AppState) {
+    /// 启动（或替换）中继任务；旧任务（若有）先被停止。
+    /// identity 共享句柄：令牌热更新后，重连/验证自动用新值
+    pub fn start(
+        &mut self,
+        name: &str,
+        url: String,
+        identity: Arc<std::sync::RwLock<crate::config::Identity>>,
+        state: AppState,
+    ) {
         self.stop();
         state.local.set_relay_target(name, Some(url.clone()));
         let (tx, rx) = tokio::sync::watch::channel(false);
