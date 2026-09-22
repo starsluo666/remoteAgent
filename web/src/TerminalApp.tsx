@@ -7,7 +7,7 @@ import '@xterm/xterm/css/xterm.css';
 import { DaemonConnection, type Status } from './lib/daemon';
 import { b64encode, type SessionInfo } from './lib/protocol';
 import Connect, { saveConn } from './Connect';
-import { target } from './lib/target';
+import { target, mergedParams } from './lib/target';
 import { LOCAL_BASE } from './lib/local';
 import './App.css';
 
@@ -108,10 +108,12 @@ export default function TerminalApp() {
   // 断线重连：尝试计数（横幅显示 + 指数退避）
   const attemptsRef = useRef(0);
   const [attempts, setAttempts] = useState(0);
-  // 观察/接管：观察模式拦截键盘输入（防误触打断 AI）；触屏设备默认观察
+  // 观察/接管：观察模式拦截键盘输入（防误触打断 AI）；触屏设备默认观察。
+  // 面板入口带 takeover=1 时强制接管（如概览页「接管输入」按钮）
   const isTouch = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
-  const [takeover, setTakeover] = useState(!isTouch);
-  const takeoverRef = useRef(!isTouch);
+  const forceTakeover = mergedParams().get('takeover') === '1';
+  const [takeover, setTakeover] = useState(!isTouch || forceTakeover);
+  const takeoverRef = useRef(!isTouch || forceTakeover);
   const setMode = (v: boolean) => {
     takeoverRef.current = v;
     setTakeover(v);
@@ -174,11 +176,11 @@ export default function TerminalApp() {
   }, []);
 
   const createSession = useCallback(
-    async (conn: DaemonConnection) => {
+    async (conn: DaemonConnection, cmd?: string) => {
       const entry = termsRef.current.get(activeRef.current ?? '');
       const cols = entry?.term.cols ?? 100;
       const rows = entry?.term.rows ?? 30;
-      const m = await conn.request({ t: 'session.create', cols, rows });
+      const m = await conn.request({ t: 'session.create', cols, rows, ...(cmd ? { cmd } : {}) });
       if (m.t === 'session.created') {
         await refetchSessions(conn);
         await attachSession(conn, m.sessionId);
@@ -196,7 +198,9 @@ export default function TerminalApp() {
     [],
   );
 
-  // 引导 / 重连恢复：列出全部 session，全部 attach（snapshot 恢复各自的终端画面）
+  // 引导 / 重连恢复：列出全部 session，全部 attach（snapshot 恢复各自的终端画面）。
+  // ?new=<cmd>（快速启动卡片带入）在首次连接时消费一次：拉起指定命令的会话
+  const pendingNewRef = useRef<string | null>(mergedParams().get('new'));
   const bootstrap = useCallback(
     async (conn: DaemonConnection) => {
       const m = await conn.request({ t: 'session.list' });
@@ -204,6 +208,12 @@ export default function TerminalApp() {
       setSessions(m.sessions);
       if (!bootstrappedRef.current) {
         bootstrappedRef.current = true;
+        const pending = pendingNewRef.current;
+        pendingNewRef.current = null;
+        if (pending) {
+          await createSession(conn, pending);
+          return;
+        }
         if (m.sessions.length === 0) {
           await createSession(conn);
           return;

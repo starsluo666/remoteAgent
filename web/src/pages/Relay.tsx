@@ -1,6 +1,5 @@
-// 中继服务页（对齐设计稿）：连接大卡（名称+四格统计）+ 仪表图 + 测试延迟/断开
-// + 多中继管理列表 + 添加中继弹窗。运行时间/活跃连接/延迟为真实数据，
-// 地区与带宽需中继协议扩展，暂显示占位。
+// 中继服务页（对齐设计稿）：连接大卡（名称+统计）+ 仪表图 + 测试延迟/断开
+// + 多中继管理列表 + 添加中继弹窗。运行时间/活跃连接/延迟为真实数据。
 
 import { useState } from 'react';
 import { localApi } from '../lib/local';
@@ -106,11 +105,6 @@ export default function RelayPage({ local, refresh }: Props) {
             <div className="rstat">
               <div className="rstat-label">运行时间</div>
               <div className="rstat-value">{local.relayOnline ? uptime(local.relayConnectedAt) : '—'}</div>
-            </div>
-            <div className="rstat">
-              <div className="rstat-label">地区</div>
-              <div className="rstat-value dim">—</div>
-              <div className="rstat-foot">需中继上报</div>
             </div>
             <div className="rstat">
               <div className="rstat-label">活跃连接</div>

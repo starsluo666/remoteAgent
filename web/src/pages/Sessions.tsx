@@ -2,6 +2,7 @@
 
 import { localApi } from '../lib/local';
 import { usePoll } from '../lib/usePoll';
+import QuickLaunch from './QuickLaunch';
 import type { SessionRow } from './types';
 
 function timeAgo(ts: number): string {
@@ -53,10 +54,8 @@ export default function SessionsPage() {
       {sessions.length === 0 ? (
         <div className="empty-table">
           <div className="empty-title">没有运行中的会话</div>
-          <div className="empty-sub">创建一个终端，或让 Claude Code / Aider 在家里跑着</div>
-          <button className="primary-btn" onClick={() => location.assign('?local=1')}>
-            新建会话
-          </button>
+          <div className="empty-sub">选择一个工作台启动 —— 会话在家里跑着，手机/浏览器随时接管</div>
+          <QuickLaunch hint="需要对应 CLI 已安装并登录（codex / claude）" />
         </div>
       ) : (
         <div className="ra-table">

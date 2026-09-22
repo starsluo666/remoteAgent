@@ -21,13 +21,15 @@ pub struct AgentSnapshot {
 }
 
 /// Codex CLI 特征表（v0.155 实测）：
-/// - banner "OpenAI Codex v" → Starting（同时确认 agent）
+/// - banner "OpenAI Codex"  → Starting（同时确认 agent；exec 模式打印
+///   "OpenAI Codex v0.155.0"，交互式 TUI 画框打印 ">_ OpenAI Codex (v0.155.0)"，
+///   故不带版本号前缀匹配）
 /// - 行 "user"              → Working（任务已提交）
 /// - 行 "codex"             → Working（回答输出中，detail 区分）
 /// - "tokens used"          → Finished（exec 完成统计）
 /// - "ERROR"                → Error（内部日志 / Reconnecting）
 const CODEX_MARKERS: &[(&str, AgentStatus)] = &[
-    ("OpenAI Codex v", AgentStatus::Starting),
+    ("OpenAI Codex", AgentStatus::Starting),
     ("\nuser\n", AgentStatus::Working),
     ("\ncodex\n", AgentStatus::Working),
     ("tokens used", AgentStatus::Finished),
@@ -143,7 +145,11 @@ impl Detector {
             }
             self.status = Some(st.clone());
             let needle_len = markers[i].0.len();
-            let end = (abs + needle_len + 60).min(self.tail.len());
+            // 截断偏移回退到字符边界：detail 尾部落进多字节字符（中文/制表框线）中间会 panic
+            let mut end = (abs + needle_len + 60).min(self.tail.len());
+            while end > abs && !self.tail.is_char_boundary(end) {
+                end -= 1;
+            }
             self.detail = self.tail[abs..end].replace('\n', " ");
             changed = true;
         }
@@ -223,6 +229,21 @@ mod tests {
         let fin = d.feed(b"tokens used\r\n3,647\r\n").expect("tokens used → Finished");
         assert_eq!(fin.status, AgentStatus::Finished);
         assert!(fin.detail.contains("tokens used"));
+    }
+
+    /// 交互式 TUI 的画框 banner（实测：>_ OpenAI Codex (v0.155.0)）也要识别
+    #[test]
+    fn codex_tui_banner() {
+        let mut d = Detector::new("codex");
+        let tui = concat!(
+            "\u{1b}[?1049h\u{1b}[2J╭────────────╮\r\n",
+            "│ >_ OpenAI Codex (v0.155.0)   │\r\n",
+            "│ model: loading               │\r\n",
+            "╰────────────╯\r\n",
+        );
+        let snap = d.feed(tui.as_bytes()).expect("TUI banner → Starting");
+        assert_eq!(snap.agent, "codex");
+        assert_eq!(snap.status, AgentStatus::Starting);
     }
 
     /// 历史 banner 不会把已推进的状态打回去
