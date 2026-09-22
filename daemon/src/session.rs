@@ -149,7 +149,7 @@ impl SessionManager {
     }
 
     pub fn create(
-        &self,
+        self: &Arc<Self>,
         cols: u16,
         rows: u16,
         cwd: Option<&str>,
@@ -222,6 +222,9 @@ impl SessionManager {
         // 因此用 try_wait 轮询，每轮短暂持锁。
         let sess = session.clone();
         let sid_wait = id.clone();
+        // waiter 退出时直接清理 map 条目：Exited 事件走订阅者通道，无人观看时
+        // 会被丢弃 —— 若只靠事件路径清理，死会话会永远留在列表里（且关不掉）
+        let mgr_wait = Arc::clone(self);
         std::thread::spawn(move || {
             let mut exit_code = None;
             loop {
@@ -249,8 +252,10 @@ impl SessionManager {
                 }
             }
             if let Some(tx) = sess.subscriber.lock().unwrap().as_ref() {
-                let _ = tx.send((sid_wait, SessionEvent::Exited(exit_code)));
+                let _ = tx.send((sid_wait.clone(), SessionEvent::Exited(exit_code)));
             }
+            // 无论有没有观看者，条目都清理（事件路径的 remove 是幂等重复）
+            mgr_wait.remove(&sid_wait);
         });
 
         // PTY 输出是阻塞读，放独立线程；产物进环形缓冲并投递给订阅者。

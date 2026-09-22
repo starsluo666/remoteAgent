@@ -325,6 +325,9 @@ pub(crate) fn handle_msg(
                     if let Err(e) = s.kill() {
                         tracing::debug!(session = %session_id, error = %e, "kill (may already be dead)");
                     }
+                    // kill 语义即"删除"：已死会话的 wait 线程早已结束，
+                    // 不会再有 exited 事件 —— 这里必须无条件清条目，否则死会话关不掉
+                    state.sessions.remove(&session_id);
                     vec![DaemonMsg::SessionKilled { req_id, session_id }]
                 }
                 None => vec![DaemonMsg::Error {

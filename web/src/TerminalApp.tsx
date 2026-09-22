@@ -196,8 +196,10 @@ export default function TerminalApp() {
       const conn = connRef.current;
       if (!conn) return;
       await conn.request({ t: 'session.kill', sessionId: sid });
+      // 已死会话不会再有 exited 事件驱动刷新 —— kill 后主动拉列表清 tab
+      await refetchSessions(conn);
     },
-    [],
+    [refetchSessions],
   );
 
   // 引导 / 重连恢复：列出全部 session，全部 attach（snapshot 恢复各自的终端画面）。
@@ -394,6 +396,15 @@ export default function TerminalApp() {
       }
     });
   }, [active, sessions]);
+
+  // 激活的会话被关闭/从列表消失 → 自动切到剩余的第一个（关闭死会话场景）
+  useEffect(() => {
+    if (active && sessions.length > 0 && !sessions.some((s) => s.id === active)) {
+      const next = sessions[0].id;
+      setActive(next);
+      activeRef.current = next;
+    }
+  }, [sessions, active]);
 
   // host div 挂载回调：为 session 创建 xterm（首次渲染该 div 时）
   const hostCallback = useCallback(
