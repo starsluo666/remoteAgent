@@ -5,7 +5,7 @@ import WebSocket from 'ws';
 
 const URL = process.argv[2] ?? 'ws://127.0.0.1:8080/ws';
 const DEVICE = 'smoke_dev_1';
-const TOKEN = 'smoke_tok_1';
+const TOKEN = process.argv[3] ?? 'smoke_tok_1';
 
 const fail = (m) => {
   console.error('FAIL:', m);
