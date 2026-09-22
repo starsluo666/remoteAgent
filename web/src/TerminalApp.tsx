@@ -119,6 +119,8 @@ export default function TerminalApp() {
     setTakeover(v);
   };
   const [mobileInput, setMobileInput] = useState('');
+  // 观察模式吞键盘的提示节流（可打印字符才提示）
+  const lastObserveHintRef = useRef(0);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -421,8 +423,18 @@ export default function TerminalApp() {
           for (const chunk of pending) term.write(chunk);
         }
         term.onData((d) => {
-          // 观察模式：只看不发（防误触打断 AI；接管由模式开关显式开启）
-          if (!takeoverRef.current) return;
+          // 观察模式：只看不发（防误触打断 AI；接管由模式开关显式开启）。
+          // 可打印按键给一次提示 —— 静默吞键盘会让用户以为"按啥都不管用"
+          if (!takeoverRef.current) {
+            if (/^[\x20-\x7e\u4e00-\u9fa5]$/.test(d)) {
+              const now = Date.now();
+              if (now - lastObserveHintRef.current > 4000) {
+                lastObserveHintRef.current = now;
+                showToast('👁 观察模式：输入已拦截，点「⌨ 接管」后可输入');
+              }
+            }
+            return;
+          }
           const conn = connRef.current;
           if (conn && activeRef.current === sid && !entry.ended) {
             conn.send({ t: 'input', sessionId: sid, data: b64encode(d) });

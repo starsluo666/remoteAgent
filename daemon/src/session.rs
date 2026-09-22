@@ -93,6 +93,15 @@ impl Session {
     }
 
     pub fn kill(&self) -> Result<()> {
+        // Windows 下命令经 cmd.exe /c 包装，child.kill() 只终止 cmd.exe，
+        // 真正的负载进程（codex 等）会变孤儿 —— 先树杀全部后代再杀根。
+        #[cfg(windows)]
+        {
+            let pid = self.child.lock().unwrap().process_id().unwrap_or(0);
+            if pid > 0 {
+                interrupt_foreground(pid);
+            }
+        }
         let r = self.child.lock().unwrap().kill().context("pty kill");
         self.close_pty();
         r
