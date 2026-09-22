@@ -18,19 +18,35 @@ var upgrader = websocket.Upgrader{
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
-	// 与 /api/devices 一致放开 CORS：本机面板跨源测延迟用
+	// 放开 CORS：本机面板跨源测延迟用
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"ok":true,"name":"remoteagent-relay","proto":1}`))
 }
 
-func handleDevices(h *hub) http.HandlerFunc {
+// handlePresence：单设备在线状态查询（全私有模型：无设备枚举）。
+// 必须携带目标 deviceId；配置了 relay_key 时必须匹配 —— 供 daemon 面板
+// 查自己的查看者数，陌生人无法探测任何设备的存在。
+func handlePresence(h *hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// 设备列表（ID + 在线状态）属公开信息，放开 CORS 供任意托管页面浏览；
-		// 真正连接仍需设备各自的 access_token 完成 E2E 握手
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(h.listDevices())
+		q := r.URL.Query()
+		dev := q.Get("device")
+		if dev == "" {
+			http.Error(w, "device required", http.StatusBadRequest)
+			return
+		}
+		if h.relayKey != "" && q.Get("key") != h.relayKey {
+			http.Error(w, "bad relay key", http.StatusForbidden)
+			return
+		}
+		online, viewers := h.presence(dev)
+		json.NewEncoder(w).Encode(map[string]any{
+			"deviceId": dev,
+			"online":   online,
+			"viewers":  viewers,
+		})
 	}
 }
 
@@ -166,7 +182,7 @@ func main() {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/devices", handleDevices(h))
+	mux.HandleFunc("/api/presence", handlePresence(h))
 	mux.HandleFunc("/ws", handleWS(h))
 
 	if *webDir != "" {

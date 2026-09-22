@@ -177,22 +177,18 @@ func (h *hub) kickClients(deviceID string) {
 	log.Printf("kicked viewers device=%s n=%d", deviceID, len(clients))
 }
 
-// listDevices：在线设备状态（仅元数据：deviceId / 在线 / 观看者数）。
-// 不含任何 token；客户端用它渲染设备列表侧栏。
-func (h *hub) listDevices() []map[string]any {
+// presence：单设备在线状态（全私有模型：不做设备枚举）。
+// 供 /api/presence 用 —— 调用方须已知 deviceId，且经 relay_key 门槛。
+func (h *hub) presence(deviceID string) (online bool, viewers int) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	out := make([]map[string]any, 0, len(h.rooms))
-	for id, r := range h.rooms {
-		r.mu.Lock()
-		out = append(out, map[string]any{
-			"deviceId": id,
-			"online":   r.daemon != nil,
-			"viewers":  len(r.clients),
-		})
-		r.mu.Unlock()
+	r, ok := h.rooms[deviceID]
+	h.mu.Unlock()
+	if !ok {
+		return false, 0
 	}
-	return out
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.daemon != nil, len(r.clients)
 }
 
 // unregister：连接断开时清理；daemon 离线要广播 presence。

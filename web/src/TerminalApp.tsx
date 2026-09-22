@@ -101,7 +101,6 @@ export default function TerminalApp() {
   const [active, setActive] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>('connecting');
   const [deviceOnline, setDeviceOnline] = useState(true);
-  const [devices, setDevices] = useState<{ deviceId: string; online: boolean }[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const savedConnRef = useRef(false);
@@ -246,14 +245,7 @@ export default function TerminalApp() {
     };
   }, [bootstrap]);
 
-  // 设备列表（中继提供；本地模式回退为单设备）
-  const refetchDevices = useCallback(() => {
-    if (!t || t.mode !== 'relay') return;
-    fetch('/api/devices')
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((list: { deviceId: string; online: boolean }[]) => setDevices(list))
-      .catch(() => setDevices([{ deviceId: t.hello.deviceId, online: status === 'ready' }]));
-  }, [t, status]);
+  // 全私有模型：中继不提供设备列表，侧栏只显示当前连接的设备
 
   useEffect(() => {
     if (!t) return;
@@ -349,8 +341,6 @@ export default function TerminalApp() {
     conn.connect();
 
     let retryTimer: number | undefined;
-    const deviceTimer = window.setInterval(refetchDevices, 8000);
-    refetchDevices();
 
     const ro = new ResizeObserver(() => {
       const sid = activeRef.current;
@@ -373,7 +363,6 @@ export default function TerminalApp() {
       document.removeEventListener('visibilitychange', onVisible);
       window.clearTimeout(retryTimer);
       window.clearTimeout(toastTimer.current);
-      window.clearInterval(deviceTimer);
       ro.disconnect();
       conn.close();
       for (const { term } of termsRef.current.values()) term.dispose();
@@ -520,7 +509,7 @@ export default function TerminalApp() {
       : status === 'connecting'
         ? { cls: 'wait', text: '连接中…' }
         : { cls: 'wait', text: '重连中…' };
-  const deviceList = devices.length > 0 ? devices : [{ deviceId: t.hello.deviceId, online: deviceOnline }];
+  const deviceList = [{ deviceId: t.hello.deviceId, online: deviceOnline }];
   const currentDeviceName = '本机设备';
 
   return (

@@ -1,13 +1,12 @@
-// 设备页：本机（含当前 AI / 查看者 / 会话实时状态）+ 中继上可见的其他设备
-// + 连接远程设备（Connect 弹窗）+ 添加设备向导（本机被配对）
+// 设备页：本机设备卡片（当前 AI / 查看者 / 会话实时状态）。
+// 全私有模型：中继不做设备枚举，连接其他设备走配对链接（Connect 弹窗）。
 
 import { useState } from 'react';
 import { localApi } from '../lib/local';
 import { usePoll } from '../lib/usePoll';
-import { fetchDevices } from '../lib/target';
 import Connect from '../Connect';
 import AddDeviceWizard from './AddDeviceWizard';
-import type { DeviceEntry, LocalInfo, SessionRow } from './types';
+import type { LocalInfo, SessionRow } from './types';
 
 const AGENT_NAME: Record<string, string> = { codex: 'Codex', claude: 'Claude Code' };
 const STATUS_LABEL: Record<string, string> = {
@@ -18,12 +17,6 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function DevicesPage({ local }: { local: LocalInfo }) {
-  const [devices] = usePoll<DeviceEntry[]>(
-    () => fetchDevices(local.relayUrl),
-    5000,
-    [],
-    local.relayUrl,
-  );
   const [data] = usePoll<{ sessions: SessionRow[] }>(
     () => fetch(localApi('/api/sessions')).then((r) => (r.ok ? r.json() : Promise.reject())),
     3000,
@@ -32,7 +25,6 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
 
-  const others = devices.filter((d) => d.deviceId !== local.deviceId);
   const sessions = data.sessions;
   // 本机"当前 AI"：进行中的优先，取最新
   const rank: Record<string, number> = { working: 0, starting: 1, error: 2, finished: 3 };
@@ -48,7 +40,7 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
       <div className="page-head">
         <div>
           <div className="page-title">设备</div>
-          <div className="page-sub">连接到中继的设备，可在任意浏览器远程其终端</div>
+          <div className="page-sub">本机设备状态；连接其他设备请使用对方发来的配对链接</div>
         </div>
         <div className="head-actions">
           <button className="primary-btn" onClick={() => setConnectOpen(true)}>
@@ -102,46 +94,10 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
             </button>
           </div>
         </div>
-
-        {others.map((d) => (
-          <div key={d.deviceId} className="ra-row">
-            <div className="col-name">
-              <span className="row-ico">🖥️</span>
-              <div>
-                <div className="row-title mono">{d.deviceId.slice(0, 8)}</div>
-                <div className="row-sub mono">{d.deviceId}</div>
-              </div>
-            </div>
-            <div className="col-ai">
-              <span className="row-sub">需连接后可见</span>
-            </div>
-            <div className="col-viewers mono">{d.viewers ?? 0}</div>
-            <div className="col-state">
-              <span className={`pill ${d.online ? 'on' : 'off'}`}>{d.online ? '在线' : '离线'}</span>
-            </div>
-            <div className="col-act">
-              <button className="mini-btn" onClick={() => setConnectOpen(true)}>
-                连接
-              </button>
-            </div>
-          </div>
-        ))}
       </div>
 
-      {!local.relayUrl && (
-        <div className="info-hint" style={{ marginTop: 14 }}>
-          未连接中继 —— 连接后，其他设备会出现在这里。去{' '}
-          <button className="linklike" onClick={() => (location.hash = '#/relay')}>
-            中继服务
-          </button>{' '}
-          页配置。
-        </div>
-      )}
-
       {wizardOpen && <AddDeviceWizard local={local} onClose={() => setWizardOpen(false)} />}
-      {connectOpen && (
-        <Connect modal onClose={() => setConnectOpen(false)} defaultRelay={local.relayUrl ?? ''} />
-      )}
+      {connectOpen && <Connect modal onClose={() => setConnectOpen(false)} />}
     </div>
   );
 }

@@ -60,13 +60,3 @@ export function relayHttpBase(relayUrl: string | null): string {
   if (!relayUrl) return '';
   return relayUrl.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://').replace(/\/ws$/, '');
 }
-
-/** 拉取中继设备列表（中继未连接时返回空） */
-export async function fetchDevices(relayUrl: string | null): Promise<{ deviceId: string; online: boolean; viewers?: number }[]> {
-  const base = relayHttpBase(relayUrl);
-  const r = await fetch(`${base}/api/devices`);
-  if (!r.ok) throw new Error(`devices ${r.status}`);
-  const ct = r.headers.get('content-type') ?? '';
-  if (!ct.includes('json')) throw new Error('not a relay');
-  return r.json();
-}

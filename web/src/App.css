@@ -3016,3 +3016,21 @@ button:disabled {
   gap: 9px;
   align-items: center;
 }
+
+/* 概览：配对链接展示框 */
+.pairing-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  color: var(--text-2);
+  font-size: 11.5px;
+  word-break: break-all;
+  cursor: pointer;
+  transition: all 0.13s ease;
+}
+.pairing-box:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}

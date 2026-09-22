@@ -187,7 +187,8 @@ async fn local_info(
 ) -> axum::Json<serde_json::Value> {
     let relay = state.local.relay_state();
     let settings = config::load_settings();
-    let viewers = fetch_viewers(&relay.url, &state.local.device_id).await;
+    let relay_key = state.identity.read().unwrap().relay_key.clone();
+    let viewers = fetch_viewers(&relay.url, &state.local.device_id, &relay_key).await;
     axum::Json(serde_json::json!({
         "deviceId": state.local.device_id,
         "accessToken": state.local.access_token.read().unwrap().clone(),
@@ -202,21 +203,20 @@ async fn local_info(
     }))
 }
 
-/// 活跃连接数：查中继 /api/devices 里本机的 viewers（未连接/失败返回 null）
-async fn fetch_viewers(relay_url: &Option<String>, device_id: &str) -> Option<u32> {
+/// 活跃连接数：查中继 /api/presence（全私有模型：单设备查询，relay_key 门槛）
+async fn fetch_viewers(relay_url: &Option<String>, device_id: &str, relay_key: &str) -> Option<u32> {
     let url = relay_url.as_ref()?;
     let base = url
         .replace("wss://", "https://")
         .replace("ws://", "http://")
         .trim_end_matches("/ws")
         .to_string();
-    let resp = http_get_json(format!("{base}/api/devices")).await.ok()?;
-    for v in resp.as_array()? {
-        if v.get("deviceId").and_then(|d| d.as_str()) == Some(device_id) {
-            return v.get("viewers").and_then(|x| x.as_u64()).map(|x| x as u32);
-        }
-    }
-    None
+    let resp = http_get_json(format!(
+        "{base}/api/presence?device={device_id}&key={relay_key}"
+    ))
+    .await
+    .ok()?;
+    resp.get("viewers").and_then(|x| x.as_u64()).map(|x| x as u32)
 }
 
 /// 极简 JSON GET（http 探测用；wss 公网场景经反代同样提供 http 的 /api）

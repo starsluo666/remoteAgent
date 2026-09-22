@@ -120,7 +120,7 @@ export default function Shell() {
         </aside>
 
         <main className="shell-main">
-          {page === 'overview' && <OverviewPage local={local} />}
+          {page === 'overview' && <OverviewPage local={local} refresh={refreshLocal} />}
           {page === 'devices' && <DevicesPage local={local} />}
           {page === 'sessions' && <SessionsPage />}
           {page === 'relay' && <RelayPage local={local} refresh={refreshLocal} />}

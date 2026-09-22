@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from 'react';
 import { paramsOf } from './lib/target';
-import { LOCAL_BASE } from './lib/local';
 
 export interface SavedConn {
   url: string; // 完整配对 href（含 query），重连直接跳转
@@ -67,17 +66,6 @@ export function normalizeRelay(input: string): string | null {
   return `wss://${t}/ws`;
 }
 
-/** 中继 ws 地址 → 对应 HTTP API 基址（浏览设备列表用） */
-function relayApiBase(relay: string | null): string {
-  if (!relay) return '';
-  return relay.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://').replace(/\/ws$/, '');
-}
-
-/** 响应是否为成功的 JSON（中继静态站对未知 API 路径会回落 text/html） */
-function respOkJson(status: number, contentType: string): boolean {
-  return status >= 200 && status < 300 && contentType.includes('json');
-}
-
 export function buildHref(f: PairFields): string {
   const q = new URLSearchParams();
   if (f.relay) q.set('relay', f.relay);
@@ -95,54 +83,17 @@ function timeAgo(ts: number): string {
   return `${Math.floor(s / 86400)} 天前`;
 }
 
-interface DeviceEntry {
-  deviceId: string;
-  online: boolean;
-}
-
-export default function Connect({
-  modal = false,
-  onClose,
-  defaultRelay,
-}: {
-  modal?: boolean;
-  onClose?: () => void;
-  /** 本机面板弹出时带入当前中继，免去手输 */
-  defaultRelay?: string;
-}) {
+export default function Connect({ modal = false, onClose }: { modal?: boolean; onClose?: () => void }) {
   const [paste, setPaste] = useState('');
-  const [relay, setRelay] = useState(defaultRelay ?? '');
+  const [relay, setRelay] = useState('');
   const [token, setToken] = useState('');
   const [device, setDevice] = useState<string | null>(null);
-  const [devices, setDevices] = useState<DeviceEntry[] | null>(null);
-  const [browsing, setBrowsing] = useState(false);
-  const [watching, setWatching] = useState(false); // 空列表时持续轮询，设备上线自动出现
-  const [browseError, setBrowseError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recents, setRecents] = useState<SavedConn[]>([]);
 
   useEffect(() => {
     setRecents(loadConns());
   }, []);
-
-  // 等待设备上线：每 3 秒静默刷新列表（硬错误不打断，下一轮继续）
-  useEffect(() => {
-    if (!watching) return;
-    const base = relayApiBase(normalizeRelay(relay));
-    const id = setInterval(() => {
-      fetch(`${base}/api/devices`)
-        .then(async (r) => {
-          const ct = r.headers.get('content-type') ?? '';
-          if (!respOkJson(r.status, ct)) return;
-          const list = (await r.json()) as DeviceEntry[];
-          setDevices(list);
-          if (list.length > 0) setBrowseError(null);
-        })
-        .catch(() => {});
-    }, 3000);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watching, relay]);
 
   // 粘贴即解析：识别出配对链接后自动选中设备并填入令牌
   const onPaste = (text: string) => {
@@ -156,34 +107,9 @@ export default function Connect({
     }
   };
 
-  // 浏览中继设备列表（浏览器部署时 relay 留空 = 当前站点；桌面壳必须显式填写）
-  const browse = async () => {
-    if (LOCAL_BASE && !relay.trim()) {
-      setBrowseError('请输入中继地址（例如 relay.example.com）');
-      return;
-    }
-    setBrowsing(true);
-    setBrowseError(null);
-    const base = relayApiBase(normalizeRelay(relay));
-    try {
-      const resp = await fetch(`${base}/api/devices`);
-      const ct = resp.headers.get('content-type') ?? '';
-      if (!resp.ok || !ct.includes('json')) throw new Error('not relay');
-      const list = (await resp.json()) as DeviceEntry[];
-      setDevices(list);
-      setWatching(true);
-    } catch {
-      setDevices([]);
-      setWatching(false);
-      setBrowseError('无法获取设备列表——请检查中继地址是否正确');
-    } finally {
-      setBrowsing(false);
-    }
-  };
-
   const connect = () => {
     if (!device || !token.trim()) {
-      setError('请先选择设备（或粘贴配对链接）并输入访问令牌');
+      setError('请先粘贴配对链接，或手动输入设备 ID 与访问令牌');
       return;
     }
     location.assign(buildHref({ relay: normalizeRelay(relay), device, token: token.trim() }));
@@ -197,14 +123,14 @@ export default function Connect({
         </svg>
       </div>
       <div className="connect-title">连接到设备</div>
-      <div className="connect-sub">粘贴配对链接，或浏览中继上的设备列表</div>
+      <div className="connect-sub">粘贴配对链接（中继全私有模型：设备不出现在公共列表，连接只认配对链接）</div>
 
       <div className="field">
         <label>配对链接（最快）</label>
         <textarea
           className="paste-box"
           rows={2}
-          placeholder="https://relay.example.com/?device=xxx&token=…"
+          placeholder="https://relay.example.com/#device=xxx&token=…"
           value={paste}
           onChange={(e) => onPaste(e.target.value)}
           spellCheck={false}
@@ -219,63 +145,29 @@ export default function Connect({
       </div>
 
       <div className="divider">
-        <span>或浏览中继设备</span>
+        <span>或手动输入</span>
       </div>
 
       <div className="field">
-        <label>中继地址（留空 = 当前站点）</label>
-        <div className="relay-row">
-          <input
-            value={relay}
-            onChange={(e) => {
-              setRelay(e.target.value);
-              setDevices(null); // 换中继后清空旧列表
-              setDevice(null);
-              setWatching(false);
-            }}
-            placeholder="relay.example.com"
-            spellCheck={false}
-          />
-          <button className="mini-btn browse-btn" onClick={() => void browse()} disabled={browsing}>
-            {browsing ? '查询中…' : '查看设备'}
-          </button>
-        </div>
+        <label>设备 ID</label>
+        <input
+          value={device ?? ''}
+          onChange={(e) => {
+            setDevice(e.target.value.trim() || null);
+            setError(null);
+          }}
+          placeholder="d7a4f1f3-…（设备面板 → 概览里查看）"
+          spellCheck={false}
+        />
       </div>
 
-      {devices && devices.length > 0 && (
-        <div className="device-pick">
-          {devices.map((d) => (
-            <div
-              key={d.deviceId}
-              className={`pick-row ${device === d.deviceId ? 'selected' : ''} ${d.online ? '' : 'offline'}`}
-              onClick={() => {
-                setDevice(d.deviceId);
-                setError(null);
-              }}
-            >
-              <span className={`dot ${d.online ? 'ok' : 'bad'}`} />
-              <span className="pick-id">{d.deviceId.slice(0, 8)}</span>
-              <span className="pick-state">{d.online ? '在线' : '离线'}</span>
-              {device === d.deviceId && <span className="pick-check">✓</span>}
-            </div>
-          ))}
-        </div>
-      )}
-      {devices && devices.length === 0 && !browseError && (
-        <div className="browse-hint">
-          <span className="pulse-dot" />
-          <span>该中继上暂无在线设备 —— 设备上线后将自动出现在这里</span>
-        </div>
-      )}
-      {browseError && <div className="browse-error">{browseError}</div>}
-
       <div className="field">
-        <label>访问令牌（daemon 本机面板或启动日志里查看）</label>
+        <label>访问令牌（设备面板 → 概览里查看/编辑）</label>
         <input
           value={token}
           onChange={(e) => setToken(e.target.value)}
           type="password"
-          placeholder="连接选中设备所需的 access token"
+          placeholder="连接该设备所需的访问令牌"
           spellCheck={false}
         />
       </div>
