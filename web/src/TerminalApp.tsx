@@ -8,6 +8,7 @@ import { DaemonConnection, type Status } from './lib/daemon';
 import { b64encode, type SessionInfo } from './lib/protocol';
 import Connect, { saveConn } from './Connect';
 import { target } from './lib/target';
+import { LOCAL_BASE } from './lib/local';
 import './App.css';
 
 interface TermEntry {
@@ -501,6 +502,13 @@ export default function TerminalApp() {
             <div className="brand-ver">v0.1 · AI 终端遥控</div>
           </div>
         </div>
+
+        {/* 桌面壳没有浏览器后退键，终端里提供显式的回面板入口 */}
+        {LOCAL_BASE && (
+          <button className="back-panel" onClick={() => location.assign(location.pathname)}>
+            ← 返回面板
+          </button>
+        )}
 
         <div className="side-section">
           <div className="section-title">我的设备</div>

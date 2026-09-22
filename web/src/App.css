@@ -76,6 +76,28 @@ button:disabled {
   border-bottom: 1px solid var(--line);
 }
 
+/* 桌面壳终端侧栏的回面板入口 */
+.back-panel {
+  display: block;
+  width: 100%;
+  margin: 10px 0 2px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.13s ease;
+}
+.back-panel:hover {
+  color: var(--text);
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
 .logo {
   width: 36px;
   height: 36px;
