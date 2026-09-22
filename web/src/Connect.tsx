@@ -156,7 +156,7 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
             setDevice(e.target.value.trim() || null);
             setError(null);
           }}
-          placeholder="d7a4f1f3-…（设备面板 → 概览里查看）"
+          placeholder="9 位设备号（设备面板 → 概览里查看）"
           spellCheck={false}
         />
       </div>
@@ -185,7 +185,7 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
             <div key={c.url} className="recent-item" onClick={() => location.assign(c.url)}>
               <span className="dot ok" />
               <span className="recent-host">{c.relayHost}</span>
-              <span className="recent-device">{c.deviceId.slice(0, 8)}</span>
+              <span className="recent-device">{c.deviceId.length > 12 ? c.deviceId.slice(0, 8) : c.deviceId}</span>
               <span className="recent-time">{timeAgo(c.savedAt)}</span>
               <button
                 className="recent-del"

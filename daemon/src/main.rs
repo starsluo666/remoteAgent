@@ -31,6 +31,13 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    if std::env::args().any(|a| a == "--reset-device-id") {
+        let id = config::reset_device_id()?;
+        tracing::info!("new device id: {}", id.device_id);
+        tracing::info!("旧配对链接里的 device 参数已失效，重启 daemon 生效");
+        return Ok(());
+    }
+
     let identity = config::load_or_create()?;
 
     let relay_url = std::env::args().nth(1).and_then(|a| {

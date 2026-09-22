@@ -157,7 +157,7 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
         <div className="stat-card">
           <div className="stat-label">设备 ID</div>
           <div className="stat-value mono" style={{ fontSize: 15, wordBreak: 'break-all' }}>
-            {local.deviceId ? local.deviceId.slice(0, 13) + '…' : '—'}
+            {local.deviceId || '—'}
           </div>
           <button className="mini-btn" style={{ marginTop: 6 }} onClick={() => copy(local.deviceId, '设备 ID')}>
             复制

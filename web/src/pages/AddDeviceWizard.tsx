@@ -98,12 +98,12 @@ export default function AddDeviceWizard({ local, onClose }: { local: LocalInfo; 
               <div className="qr-title">扫码添加这台电脑</div>
               <div className="qr-sub">
                 手机浏览器打开「{relayWeb}」，或直接扫描左边的二维码，
-                扫码后点「查看设备」选择本机并输入访问令牌。
+                扫码后输入设备号与访问令牌（或直接打开配对链接）。
               </div>
               <div className="pair-row">
-                <span className="pair-label">设备 ID</span>
-                <span className="mono pair-value">{local.deviceId.slice(0, 8)}</span>
-                <button className="mini-btn" onClick={() => copy(local.deviceId, '设备 ID')}>复制</button>
+                <span className="pair-label">设备号</span>
+                <span className="mono pair-value">{local.deviceId}</span>
+                <button className="mini-btn" onClick={() => copy(local.deviceId, '设备号')}>复制</button>
               </div>
               <div className="pair-row">
                 <span className="pair-label">访问令牌</span>

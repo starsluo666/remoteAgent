@@ -544,13 +544,13 @@ export default function TerminalApp() {
                   </div>
                   <div className="device-info">
                     <div className="device-name">
-                      {cur ? currentDeviceName : d.deviceId.slice(0, 8)}
+                      {cur ? currentDeviceName : d.deviceId.length > 12 ? d.deviceId.slice(0, 8) : d.deviceId}
                       {cur && <span className="device-badge">已连接</span>}
                     </div>
                     <div className="device-sub">
                       <span className={`dot ${d.online ? 'ok' : 'bad'}`} />
                       {d.online ? '在线' : '离线'}
-                      <span className="device-mac">{d.deviceId.slice(0, 8)}</span>
+                      <span className="device-mac">{d.deviceId.length > 12 ? d.deviceId.slice(0, 8) : d.deviceId}</span>
                     </div>
                   </div>
                 </div>

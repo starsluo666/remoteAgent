@@ -29,6 +29,23 @@ fn new_token() -> String {
     format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple())
 }
 
+/// 设备号：随机 9 位数字（首位非零）。设备 ID 非机密（真正的凭据是
+/// access_token，E2E HMAC 验证），9 位数字便于口头/手动输入；
+/// 冲突空间 10^9，自建中继规模下可忽略（撞号注册会被拒绝，可再换）。
+fn new_device_id() -> String {
+    let n = (uuid::Uuid::new_v4().as_u128() % 900_000_000) + 100_000_000;
+    n.to_string()
+}
+
+/// 重设设备号（换新 9 位随机数字；旧配对链接里的 device 参数随之失效）
+pub fn reset_device_id() -> Result<Identity> {
+    let mut id = load_or_create()?;
+    id.device_id = new_device_id();
+    let path = identity_path()?;
+    fs::write(&path, serde_json::to_string_pretty(&id)?).context("write identity.json")?;
+    Ok(id)
+}
+
 pub fn load_or_create() -> Result<Identity> {
     let path = identity_path()?;
 
@@ -37,8 +54,7 @@ pub fn load_or_create() -> Result<Identity> {
         let raw = fs::read_to_string(&path).context("read identity.json")?;
         let mut v: serde_json::Value = serde_json::from_str(&raw).context("parse identity.json")?;
         if v.get("access_token").is_none() {
-            v["access_token"] = serde_json::json!(new_token());
-            if v.get("relay_key").is_none() {
+            v["access_token"] = serde_json::json!(new_token());            if v.get("relay_key").is_none() {
                 v["relay_key"] = v["token"].clone();
             }
             fs::write(&path, serde_json::to_string_pretty(&v)?)?;
@@ -49,7 +65,7 @@ pub fn load_or_create() -> Result<Identity> {
     }
 
     let id = Identity {
-        device_id: uuid::Uuid::new_v4().to_string(),
+        device_id: new_device_id(),
         relay_key: new_token(),
         access_token: new_token(),
     };
