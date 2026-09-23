@@ -298,42 +298,58 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
       {tokenMsg && <div className="relay-hint">{tokenMsg}</div>}
       {copied && <div className="relay-hint accent">{copied}</div>}
 
-      <div className="page-cols">
+      {/* 远程端：连接指引替代家机配对/快捷操作 */}
+      {!local.deviceId ? (
         <div className="panel-card">
-          <div className="panel-title">手机如何连进来</div>
-          {pairingLink ? (
-            <>
-              <div className="info-hint">
-                复制下方配对链接发到手机（微信/短信），手机浏览器打开即连 —— 中继上不展示任何设备列表，连接只认此链接。
-              </div>
-              <div className="pairing-box mono" onClick={() => copy(pairingLink, '配对链接')} title="点击复制">
-                {pairingLink.length > 72 ? pairingLink.slice(0, 72) + '…' : pairingLink}
-              </div>
-              <div className="panel-foot">🔒 全程端到端加密，中继无法读取会话内容</div>
-            </>
-          ) : (
-            <div className="info-hint">
-              还没有连接中继。到「中继服务」页填入你的中继地址（例如 wss://relay.example.com/ws），
-              手机即可经公网访问本机终端。
-            </div>
-          )}
-        </div>
-
-        <div className="panel-card">
-          <div className="panel-title">快捷操作</div>
-          <div className="quick-actions">
-            <button className="primary-btn" onClick={() => location.assign('?local=1')}>
-              打开本机终端
-            </button>
-            <button className="ghost-btn" onClick={() => (location.hash = '#/relay')}>
-              配置中继
-            </button>
-            <button className="ghost-btn" onClick={() => (location.hash = '#/devices')}>
-              添加新设备（配对码）
+          <div className="panel-title">如何连接你的电脑</div>
+          <div className="info-hint">
+            家里电脑的 RemoteAgent 面板（概览页）有配对链接，复制发到这里；到
+            「设备」页粘贴即可连接，之后可查看它的 AI 会话与终端。
+          </div>
+          <div className="quick-actions" style={{ marginTop: 12 }}>
+            <button className="primary-btn" onClick={() => (location.hash = '#/devices')}>
+              去设备页连接
             </button>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="page-cols">
+          <div className="panel-card">
+            <div className="panel-title">手机如何连进来</div>
+            {pairingLink ? (
+              <>
+                <div className="info-hint">
+                  复制下方配对链接发到手机（微信/短信），手机浏览器打开即连 —— 中继上不展示任何设备列表，连接只认此链接。
+                </div>
+                <div className="pairing-box mono" onClick={() => copy(pairingLink, '配对链接')} title="点击复制">
+                  {pairingLink.length > 72 ? pairingLink.slice(0, 72) + '…' : pairingLink}
+                </div>
+                <div className="panel-foot">🔒 全程端到端加密，中继无法读取会话内容</div>
+              </>
+            ) : (
+              <div className="info-hint">
+                还没有连接中继。到「中继服务」页填入你的中继地址（例如 wss://relay.example.com/ws），
+                手机即可经公网访问本机终端。
+              </div>
+            )}
+          </div>
+
+          <div className="panel-card">
+            <div className="panel-title">快捷操作</div>
+            <div className="quick-actions">
+              <button className="primary-btn" onClick={() => location.assign('?local=1')}>
+                打开本机终端
+              </button>
+              <button className="ghost-btn" onClick={() => (location.hash = '#/relay')}>
+                配置中继
+              </button>
+              <button className="ghost-btn" onClick={() => (location.hash = '#/devices')}>
+                添加新设备（配对码）
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -35,23 +35,43 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
         (rank[a.agentStatus ?? ''] ?? 9) - (rank[b.agentStatus ?? ''] ?? 9) || b.startedAt - a.startedAt,
     )[0];
 
+  // 远程端（本机无 daemon）：不显示本机表，只保留连接入口
+  const remote = !local.deviceId;
+
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <div className="page-title">设备</div>
-          <div className="page-sub">本机设备状态；连接其他设备请使用对方发来的配对链接</div>
+          <div className="page-sub">
+            {remote ? '连接你的电脑，查看并接管它的终端会话' : '本机设备状态；连接其他设备请使用对方发来的配对链接'}
+          </div>
         </div>
-        <div className="head-actions">
-          <button className="primary-btn" onClick={() => setConnectOpen(true)}>
-            连接远程设备
-          </button>
-          <button className="ghost-btn" onClick={() => setWizardOpen(true)}>
-            ＋ 添加新设备
-          </button>
-        </div>
+        {!remote && (
+          <div className="head-actions">
+            <button className="primary-btn" onClick={() => setConnectOpen(true)}>
+              连接远程设备
+            </button>
+            <button className="ghost-btn" onClick={() => setWizardOpen(true)}>
+              ＋ 添加新设备
+            </button>
+          </div>
+        )}
       </div>
 
+      {remote ? (
+        <div className="panel-card">
+          <div className="panel-title">连接设备</div>
+          <div className="info-hint">
+            粘贴家里电脑的配对链接（家机面板概览页一键复制），连接后即可查看它的 AI 会话与终端。
+          </div>
+          <div className="quick-actions" style={{ marginTop: 12 }}>
+            <button className="primary-btn" onClick={() => setConnectOpen(true)}>
+              连接远程设备
+            </button>
+          </div>
+        </div>
+      ) : (
       <div className="ra-table">
         <div className="ra-row head">
           <div className="col-name">设备</div>
@@ -95,6 +115,8 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
           </div>
         </div>
       </div>
+
+      )}
 
       {wizardOpen && <AddDeviceWizard local={local} onClose={() => setWizardOpen(false)} />}
       {connectOpen && <Connect onClose={() => setConnectOpen(false)} />}

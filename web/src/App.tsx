@@ -50,6 +50,14 @@ function Landing() {
 export default function App() {
   // 窗口控制常驻右上角（仅桌面壳）；各页面为其让位
   if (LOCAL_BASE) document.body.classList.add('in-tauri');
+  // hash 路由：应用内配对连接只改 hash（fragment 不上行，token 不落日志），
+  // 不监听的话 SPA 不会切换视图 —— 真机"点了连接没反应"的根因
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const on = () => forceUpdate((n) => n + 1);
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
   return (
     <>
       <WindowCaps />

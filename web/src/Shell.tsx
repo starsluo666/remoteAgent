@@ -112,7 +112,7 @@ export default function Shell() {
             </div>
             <div className="brand-text">
               <div className="brand-name">RemoteAgent</div>
-              <div className="brand-ver">v0.1 · 本机</div>
+              <div className="brand-ver">{local.deviceId ? 'v0.1 · 本机' : 'v0.1 · 远程'}</div>
             </div>
           </div>
 
