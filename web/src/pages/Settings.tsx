@@ -26,7 +26,14 @@ const CATS: { id: Cat; label: string; icon: string }[] = [
 
 const FONT_KEY = 'ra.termFontSize';
 
-export default function SettingsPage({ local: _local }: { local: LocalInfo }) {
+export default function SettingsPage({
+  local: _local,
+  onHelp,
+}: {
+  local: LocalInfo;
+  /** 手机端帮助入口（底部导航无帮助 tab，收进设置页） */
+  onHelp?: () => void;
+}) {
   const [cat, setCat] = useState<Cat>('general');
   const [fontSize, setFontSize] = useState(() => Number(localStorage.getItem(FONT_KEY)) || 14);
   const [autostart, setAutostart] = useState(_local.autostart ?? false);
@@ -135,6 +142,17 @@ export default function SettingsPage({ local: _local }: { local: LocalInfo }) {
                     <span className="knob" />
                   </button>
                 </div>
+                {onHelp && (
+                  <div className="set-row">
+                    <div>
+                      <div className="set-name">帮助与排障</div>
+                      <div className="set-desc">快速上手、连接流程、常见问题</div>
+                    </div>
+                    <button className="mini-btn" onClick={onHelp}>
+                      打开
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           )}

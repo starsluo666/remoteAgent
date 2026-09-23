@@ -91,6 +91,15 @@ export default function Shell() {
 
   const relayOk = local.relayOnline;
 
+  // 手机端底部导航（≤760px 显示）：5 tab，帮助收进设置页
+  const bottomTabs: { id: PageId; label: string; icon: ReactNode }[] = [
+    { id: 'overview', label: '概览', icon: <NavIconGrid /> },
+    { id: 'devices', label: '设备', icon: <NavIconMonitor /> },
+    { id: 'sessions', label: '会话', icon: <NavIconActivity /> },
+    { id: 'relay', label: '中继', icon: <NavIconServer /> },
+    { id: 'settings', label: '设置', icon: <NavIconGear /> },
+  ];
+
   return (
     <div className="shell">
       <div className={`app-window${LOCAL_BASE ? ' in-tauri' : ''}`}>
@@ -124,9 +133,22 @@ export default function Shell() {
           {page === 'devices' && <DevicesPage local={local} />}
           {page === 'sessions' && <SessionsPage />}
           {page === 'relay' && <RelayPage local={local} refresh={refreshLocal} />}
-          {page === 'settings' && <SettingsPage local={local} />}
+          {page === 'settings' && <SettingsPage local={local} onHelp={() => navigate('help')} />}
           {page === 'help' && <HelpPage />}
         </main>
+
+        <nav className="bottom-nav">
+          {bottomTabs.map((t) => (
+            <button
+              key={t.id}
+              className={`bottom-item ${page === t.id ? 'active' : ''}`}
+              onClick={() => navigate(t.id)}
+            >
+              {t.icon}
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
     </div>
   );
