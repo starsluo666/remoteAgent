@@ -61,7 +61,7 @@ export default function App() {
   return (
     <>
       <WindowCaps />
-      {target() ? <TerminalApp /> : <Landing />}
+      {(() => { const t = target(); return t ? <TerminalApp key={t.url + '#' + t.hello.deviceId} /> : <Landing />; })()}
     </>
   );
 }
