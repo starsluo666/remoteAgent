@@ -3294,3 +3294,79 @@ body.in-tauri .tabs {
     justify-content: center;
   }
 }
+
+/* ── 手机端自适应补全（≤760px）：留白/表格/卡片密度 ── */
+@media (max-width: 760px) {
+  .page {
+    padding: 16px 14px 32px;
+    gap: 14px;
+  }
+  .page-head {
+    flex-wrap: wrap;
+  }
+  .page-head .head-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  /* 多列表格：容器横向滚动，行保持可读宽度 */
+  .ra-table {
+    overflow-x: auto;
+  }
+  .ra-row {
+    min-width: 640px;
+  }
+  .ra-row.head {
+    min-width: 640px;
+  }
+  .info-hint {
+    padding: 12px;
+  }
+  /* 快速启动：三卡一行压缩，描述行省略 */
+  .quick-launch {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+  }
+  .ql-card {
+    padding: 10px 8px;
+    align-items: center;
+    text-align: center;
+  }
+  .ql-desc {
+    display: none;
+  }
+  /* AI hero 与令牌编辑收紧 */
+  .ai-hero {
+    padding: 14px;
+  }
+  .ai-hero-title {
+    font-size: 15px;
+  }
+  .ai-hero-actions {
+    flex-wrap: wrap;
+  }
+  .token-edit-actions {
+    flex-wrap: wrap;
+  }
+  /* 落地页：留白收紧，主按钮满宽 */
+  .hero-frame {
+    padding: 14px;
+  }
+  .hero-actions .hero-cta.big {
+    width: 100%;
+    justify-content: center;
+  }
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hero-hint {
+    text-align: center;
+  }
+  /* 中继统计格与设置行 */
+  .relay-stats {
+    gap: 10px;
+  }
+  .set-row {
+    flex-wrap: wrap;
+  }
+}
