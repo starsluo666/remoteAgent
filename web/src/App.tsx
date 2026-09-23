@@ -10,7 +10,7 @@ import LandingHero from './LandingHero';
 import { target } from './lib/target';
 import { localApi, LOCAL_BASE } from './lib/local';
 import WindowCaps from './WindowCaps';
-import RemoteShell from './RemoteShell';
+import Connect from './Connect';
 import './App.css';
 
 /** 无参数落地：探测本机 daemon（JSON 响应判定）→ 桌面应用；否则 落地页 → 连接页 */
@@ -28,11 +28,11 @@ function Landing() {
   }, []);
   if (mode === 'checking') return <div className="connect-page" />;
   if (mode === 'local') return <Shell />;
-  // 中继站点：落地页 → 进入应用（主导航外壳，默认概览；连接表单并入概览）
+  // 中继站点：落地页 → 「我的设备」控制台（已配对设备一键连 + 添加新设备）
   if (!entered && !location.hash.includes('connect')) {
     return <LandingHero onEnter={() => setEntered(true)} />;
   }
-  return <RemoteShell />;
+  return <Connect />;
 }
 
 export default function App() {
