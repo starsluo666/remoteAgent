@@ -16,6 +16,7 @@ export interface LocalInfo {
   relayViewers: number | null;
   relays: RelayConfig[];
   activeRelay: string | null;
+  autostart?: boolean;
 }
 
 export interface DeviceEntry {

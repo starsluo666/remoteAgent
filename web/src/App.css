@@ -3034,3 +3034,39 @@ button:disabled {
   border-color: var(--accent);
   color: var(--text);
 }
+
+/* 开关（设置页开机自启） */
+.switch {
+  width: 42px;
+  height: 24px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  position: relative;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  padding: 0;
+}
+.switch .knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text-3);
+  transition: all 0.16s ease;
+}
+.switch.on {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  border-color: var(--accent);
+}
+.switch.on .knob {
+  left: 20px;
+  background: #fff;
+}
+.switch:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}

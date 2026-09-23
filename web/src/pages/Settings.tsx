@@ -3,6 +3,7 @@
 // 设备 ID / 访问令牌在「概览」页展示与编辑。
 
 import { useState } from 'react';
+import { localApi } from '../lib/local';
 import type { LocalInfo } from './types';
 
 type Cat = 'general' | 'appearance' | 'ai' | 'terminal' | 'about';
@@ -20,6 +21,23 @@ const FONT_KEY = 'ra.termFontSize';
 export default function SettingsPage({ local: _local }: { local: LocalInfo }) {
   const [cat, setCat] = useState<Cat>('general');
   const [fontSize, setFontSize] = useState(() => Number(localStorage.getItem(FONT_KEY)) || 14);
+  const [autostart, setAutostart] = useState(_local.autostart ?? false);
+  const [autostartBusy, setAutostartBusy] = useState(false);
+
+  const toggleAutostart = async () => {
+    setAutostartBusy(true);
+    try {
+      const r = await fetch(localApi('/api/local/autostart'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !autostart }),
+      });
+      const v = (await r.json()) as { enabled?: boolean };
+      if (v.enabled != null) setAutostart(v.enabled);
+    } finally {
+      setAutostartBusy(false);
+    }
+  };
 
   const applyFontSize = (v: number) => {
     setFontSize(v);
@@ -53,9 +71,19 @@ export default function SettingsPage({ local: _local }: { local: LocalInfo }) {
                 <div className="set-row">
                   <div>
                     <div className="set-name">开机自启</div>
-                    <div className="set-desc">系统启动时自动运行 daemon 并恢复中继连接</div>
+                    <div className="set-desc">
+                      登录 Windows 后自动运行 daemon 并恢复中继连接（隐藏窗口，无需管理员）
+                    </div>
                   </div>
-                  <span className="soon-pill">即将支持</span>
+                  <button
+                    className={`switch ${autostart ? 'on' : ''}`}
+                    disabled={autostartBusy}
+                    onClick={() => void toggleAutostart()}
+                    role="switch"
+                    aria-checked={autostart}
+                  >
+                    <span className="knob" />
+                  </button>
                 </div>
                 <div className="set-row">
                   <div>

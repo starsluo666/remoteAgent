@@ -100,6 +100,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/local/relay", axum::routing::post(set_relay))
         .route("/api/local/relays", axum::routing::post(manage_relays))
         .route("/api/local/token", axum::routing::post(set_token))
+        .route("/api/local/autostart", axum::routing::post(set_autostart))
         .route("/api/sessions", axum::routing::get(list_sessions))
         .route("/ws", axum::routing::get(ws::handle_ws))
         .with_state(state)
@@ -207,7 +208,66 @@ async fn local_info(
         "relayViewers": viewers,
         "relays": settings.relays,
         "activeRelay": settings.active,
+        "autostart": autostart_enabled(),
     }))
+}
+
+/// 开机自启（Windows）：用户 Startup 文件夹放一个 VBS，登录时以隐藏窗口
+/// 拉起 daemon —— 无需管理员权限、无控制台闪窗、删文件即撤销。
+#[cfg(windows)]
+fn autostart_vbs_path() -> Option<std::path::PathBuf> {
+    let appdata = std::env::var("APPDATA").ok()?;
+    Some(
+        std::path::PathBuf::from(appdata).join(
+            r"Microsoft\Windows\Start Menu\Programs\Startup\RemoteAgent-daemon.vbs",
+        ),
+    )
+}
+
+#[cfg(windows)]
+fn autostart_enabled() -> bool {
+    autostart_vbs_path().is_some_and(|p| p.exists())
+}
+
+#[cfg(not(windows))]
+fn autostart_enabled() -> bool {
+    false
+}
+
+#[derive(serde::Deserialize)]
+struct AutostartBody {
+    enabled: bool,
+}
+
+async fn set_autostart(
+    axum::extract::State(_state): axum::extract::State<ws::AppState>,
+    axum::Json(body): axum::Json<AutostartBody>,
+) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+    #[cfg(windows)]
+    {
+        let path = autostart_vbs_path()
+            .ok_or((axum::http::StatusCode::INTERNAL_SERVER_ERROR, "no APPDATA".into()))?;
+        if body.enabled {
+            let exe = std::env::current_exe()
+                .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            let exe = exe.to_string_lossy().replace('"', "");
+            let vbs = format!(
+                "' RemoteAgent daemon 自启动（隐藏窗口，删除本文件即撤销）\n\
+                 CreateObject(\"Wscript.Shell\").Run \"\"\"{exe}\"\"\", 0, False\n"
+            );
+            std::fs::write(&path, vbs)
+                .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            tracing::info!(path = %path.display(), "autostart enabled");
+        } else {
+            let _ = std::fs::remove_file(&path);
+            tracing::info!("autostart disabled");
+        }
+        return Ok(axum::Json(
+            serde_json::json!({ "ok": true, "enabled": autostart_enabled() }),
+        ));
+    }
+    #[cfg(not(windows))]
+    Err((axum::http::StatusCode::NOT_IMPLEMENTED, "仅支持 Windows".into()))
 }
 
 /// 活跃连接数：查中继 /api/presence（全私有模型：单设备查询，relay_key 门槛）
