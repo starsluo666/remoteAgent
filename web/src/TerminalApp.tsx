@@ -788,7 +788,7 @@ export default function TerminalApp() {
         </div>
       </main>
 
-      {connectOpen && <Connect modal onClose={() => setConnectOpen(false)} />}
+      {connectOpen && <Connect onClose={() => setConnectOpen(false)} />}
 
       {toast && (
         <div className="toast">

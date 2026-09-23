@@ -83,7 +83,7 @@ function timeAgo(ts: number): string {
   return `${Math.floor(s / 86400)} 天前`;
 }
 
-export default function Connect({ modal = false, onClose }: { modal?: boolean; onClose?: () => void }) {
+export default function Connect({ onClose }: { onClose: () => void }) {
   const [paste, setPaste] = useState('');
   const [relay, setRelay] = useState('');
   const [token, setToken] = useState('');
@@ -116,18 +116,14 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
   };
 
   const body = (
-    <div className={`connect-card ${modal ? 'in-modal' : ''}`}>
+    <div className="connect-card in-modal">
       <div className="connect-logo">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M5 7.5l4 4.5-4 4.5M12 16.5h7" />
         </svg>
       </div>
-      <div className="connect-title">{modal ? '连接远程设备' : '我的设备'}</div>
-      <div className="connect-sub">
-        {modal
-          ? '粘贴对方发来的配对链接，或输入设备号 + 访问令牌'
-          : '选择设备一键连接；没有配对过？粘贴配对链接添加'}
-      </div>
+      <div className="connect-title">连接远程设备</div>
+      <div className="connect-sub">已配对的设备一键连接；新设备粘贴配对链接，或输入设备号 + 访问令牌</div>
 
       {recents.length > 0 && (
         <div className="recents">
@@ -216,14 +212,12 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
     </div>
   );
 
-  if (modal) {
-    return (
-      <div className="connect-overlay" onClick={onClose}>
-        <div className="connect-modal-stop" onClick={(e) => e.stopPropagation()}>
-          {body}
-        </div>
+  // 纯弹窗形态（面板「连接远程设备」入口）；独立页面形态已按用户决策移除
+  return (
+    <div className="connect-overlay" onClick={onClose}>
+      <div className="connect-modal-stop" onClick={(e) => e.stopPropagation()}>
+        {body}
       </div>
-    );
-  }
-  return <div className="connect-page">{body}</div>;
+    </div>
+  );
 }

@@ -97,7 +97,7 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
       </div>
 
       {wizardOpen && <AddDeviceWizard local={local} onClose={() => setWizardOpen(false)} />}
-      {connectOpen && <Connect modal onClose={() => setConnectOpen(false)} />}
+      {connectOpen && <Connect onClose={() => setConnectOpen(false)} />}
     </div>
   );
 }
