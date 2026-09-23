@@ -3070,3 +3070,69 @@ button:disabled {
   opacity: 0.5;
   cursor: wait;
 }
+
+/* ── 浅色主题（html[data-theme='light']）：变量整体翻转 ─────────
+   终端画布/终端工具栏刻意保持深色（终端惯例），其余 UI 跟随变量 */
+html[data-theme='light'] {
+  --bg: #f3f4f7;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --card-hi: #eef0f4;
+  --line: rgba(16, 24, 40, 0.09);
+  --line-hi: rgba(16, 24, 40, 0.18);
+  --text: #171d29;
+  --text-2: #4d5768;
+  --text-3: #8b95a6;
+  --accent: #6d4fe0;
+  --accent-deep: #5b3fd1;
+  --accent-soft: rgba(109, 79, 224, 0.10);
+  --green: #0c9d67;
+  --green-soft: rgba(12, 157, 103, 0.12);
+  --amber: #b37a10;
+  --red: #d54d4d;
+  --blue: #2f6fe4;
+}
+/* 浅色下白色叠层失效的少数面板元素 */
+html[data-theme='light'] .ra-row.head {
+  background: rgba(16, 24, 40, 0.035);
+}
+html[data-theme='light'] .stat-card,
+html[data-theme='light'] .panel-card {
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+html[data-theme='light'] .connect-logo,
+html[data-theme='light'] .logo {
+  color: #fff;
+}
+html[data-theme='light'] .toast {
+  background: #2a3040;
+  color: #fff;
+}
+
+/* 主题分段选择器 */
+.seg {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(127, 127, 127, 0.05);
+}
+.seg-item {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-family: inherit;
+  transition: all 0.13s ease;
+}
+.seg-item:hover {
+  color: var(--text);
+}
+.seg-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}

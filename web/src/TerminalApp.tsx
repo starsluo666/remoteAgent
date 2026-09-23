@@ -9,6 +9,7 @@ import { b64encode, type SessionInfo } from './lib/protocol';
 import Connect, { saveConn } from './Connect';
 import { target, mergedParams } from './lib/target';
 import { LOCAL_BASE } from './lib/local';
+import { notify } from './lib/notify';
 import './App.css';
 
 interface TermEntry {
@@ -315,12 +316,20 @@ export default function TerminalApp() {
       },
       onAgentStatus: (sid, agent, status, detail) => {
         setAgentSnap({ sid, agent, status, detail });
+        // 桌面通知：任务完成/出错且应用不可见时提醒（长任务挂机场景）
+        const name = agent === 'codex' ? 'Codex' : agent === 'claude' ? 'Claude Code' : agent;
+        if (status === 'finished') {
+          notify(`✅ ${name} 已完成`, detail ? detail.slice(0, 80) : '任务结束', `ai-${sid}`);
+        } else if (status === 'error') {
+          notify(`⚠️ ${name} 出错`, detail ? detail.slice(0, 80) : '请查看终端', `ai-${sid}`);
+        }
       },
       onExited: (sid) => {
         setAgentSnap((cur) => (cur?.sid === sid ? { ...cur, status: 'finished', detail: 'process exited' } : cur));
         pendingRef.current.delete(sid);
         const entry = termsRef.current.get(sid);
         if (entry) entry.ended = true;
+        notify('RemoteAgent 会话已退出', `会话 #${sid.slice(2, 8)} 的进程已结束`, `exit-${sid}`);
         const conn = connRef.current;
         if (conn) void refetchSessions(conn);
       },

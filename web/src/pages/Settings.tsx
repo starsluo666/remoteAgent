@@ -4,6 +4,14 @@
 
 import { useState } from 'react';
 import { localApi } from '../lib/local';
+import { setTheme, storedTheme, type Theme } from '../lib/theme';
+import {
+  notifyEnabled,
+  notifyPermission,
+  notifySupported,
+  requestNotifyPermission,
+  setNotifyEnabled,
+} from '../lib/notify';
 import type { LocalInfo } from './types';
 
 type Cat = 'general' | 'appearance' | 'ai' | 'terminal' | 'about';
@@ -23,6 +31,27 @@ export default function SettingsPage({ local: _local }: { local: LocalInfo }) {
   const [fontSize, setFontSize] = useState(() => Number(localStorage.getItem(FONT_KEY)) || 14);
   const [autostart, setAutostart] = useState(_local.autostart ?? false);
   const [autostartBusy, setAutostartBusy] = useState(false);
+  const [theme, setThemeState] = useState<Theme>(() => storedTheme());
+  const [notifyOn, setNotifyOn] = useState(() => notifyEnabled());
+  const [notifyPerm, setNotifyPerm] = useState(() => notifyPermission());
+
+  const pickTheme = (t: Theme) => {
+    setTheme(t);
+    setThemeState(t);
+  };
+
+  const toggleNotify = async () => {
+    if (!notifyOn) {
+      const ok = await requestNotifyPermission();
+      setNotifyPerm(notifyPermission());
+      if (!ok) return; // 权限没拿到：保持关闭，提示行会说明
+      setNotifyEnabled(true);
+      setNotifyOn(true);
+    } else {
+      setNotifyEnabled(false);
+      setNotifyOn(false);
+    }
+  };
 
   const toggleAutostart = async () => {
     setAutostartBusy(true);
@@ -88,9 +117,23 @@ export default function SettingsPage({ local: _local }: { local: LocalInfo }) {
                 <div className="set-row">
                   <div>
                     <div className="set-name">桌面通知</div>
-                    <div className="set-desc">会话退出 / 接管请求时推送系统通知</div>
+                    <div className="set-desc">
+                      {notifySupported()
+                        ? notifyPerm === 'denied'
+                          ? '浏览器已拒绝通知权限 —— 在浏览器站点设置里允许后重开开关'
+                          : 'AI 任务完成 / 出错、会话退出时推送（应用在后台时才打扰）'
+                        : '当前环境不支持系统通知'}
+                    </div>
                   </div>
-                  <span className="soon-pill">即将支持</span>
+                  <button
+                    className={`switch ${notifyOn && notifyPerm === 'granted' ? 'on' : ''}`}
+                    disabled={!notifySupported() || notifyPerm === 'denied'}
+                    onClick={() => void toggleNotify()}
+                    role="switch"
+                    aria-checked={notifyOn && notifyPerm === 'granted'}
+                  >
+                    <span className="knob" />
+                  </button>
                 </div>
               </div>
             </>
@@ -102,16 +145,25 @@ export default function SettingsPage({ local: _local }: { local: LocalInfo }) {
               <div className="set-row">
                 <div>
                   <div className="set-name">主题</div>
-                  <div className="set-desc">深色（内置）</div>
+                  <div className="set-desc">界面配色（终端画布保持深色）</div>
                 </div>
-                <span className="pill on">深色</span>
-              </div>
-              <div className="set-row">
-                <div>
-                  <div className="set-name">浅色主题</div>
-                  <div className="set-desc">规划中</div>
+                <div className="seg">
+                  {(
+                    [
+                      ['dark', '深色'],
+                      ['light', '浅色'],
+                      ['system', '跟随系统'],
+                    ] as [Theme, string][]
+                  ).map(([v, label]) => (
+                    <button
+                      key={v}
+                      className={`seg-item ${theme === v ? 'active' : ''}`}
+                      onClick={() => pickTheme(v)}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
-                <span className="soon-pill">即将支持</span>
               </div>
             </div>
           )}

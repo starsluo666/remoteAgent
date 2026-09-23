@@ -10,8 +10,8 @@ body,
 }
 
 body {
-  background: #0a0c10;
-  color: #e8ebf2;
+  background: var(--bg, #0a0c10);
+  color: var(--text, #e8ebf2);
   font-family:
     'Outfit',
     'Segoe UI Variable Text',
