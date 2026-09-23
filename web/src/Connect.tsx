@@ -103,6 +103,7 @@ export default function Connect({ onClose }: { onClose: () => void }) {
   const [relays, setRelays] = useState<ClientRelay[]>(() => loadClientRelays());
   const [selectedRelay, setSelectedRelay] = useState<string>(() => getLastRelay() ?? '');
   const [addingRelay, setAddingRelay] = useState(() => loadClientRelays().length === 0);
+  const [switchingRelay, setSwitchingRelay] = useState(false);
 
   useEffect(() => {
     setRecents(loadConns());
@@ -195,9 +196,19 @@ export default function Connect({ onClose }: { onClose: () => void }) {
         <span>添加新设备</span>
       </div>
 
-      <div className="field">
-        <label>中继</label>
-        {relays.length > 0 && !addingRelay ? (
+      {relays.length > 0 && !addingRelay && !switchingRelay ? (
+        <div className="relay-summary">
+          <span className="dot ok" />
+          <span className="relay-summary-text">
+            经「{relays.find((r) => r.url === selectedRelay)?.name || selectedRelay.replace(/^wss?:\/\//, '')}」连接
+          </span>
+          <button className="linklike" onClick={() => setSwitchingRelay(true)}>
+            {relays.length > 1 ? '切换' : '更换'}
+          </button>
+        </div>
+      ) : relays.length > 0 && !addingRelay ? (
+        <div className="field">
+          <label>中继</label>
           <div className="relay-pick">
             <select
               value={selectedRelay}
@@ -240,7 +251,15 @@ export default function Connect({ onClose }: { onClose: () => void }) {
                 ×
               </button>
             )}
+            <button
+              className="mini-btn"
+              title="收起中继选择"
+              onClick={() => setSwitchingRelay(false)}
+            >
+              ✓
+            </button>
           </div>
+        </div>
         ) : (
           <div className="relay-pick">
             <input
@@ -265,7 +284,6 @@ export default function Connect({ onClose }: { onClose: () => void }) {
             )}
           </div>
         )}
-      </div>
 
       <div className="field">
         <label>设备号</label>

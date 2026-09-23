@@ -3580,3 +3580,19 @@ body.in-tauri .tabs {
 .paste-fold[open] summary {
   color: var(--text-2);
 }
+
+/* 连接弹窗：中继摘要行（有已配置中继时的默认态） */
+.relay-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--green) 6%, transparent);
+  font-size: 12.5px;
+}
+.relay-summary-text {
+  flex: 1;
+  color: var(--text-2);
+}
