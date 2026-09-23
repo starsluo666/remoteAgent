@@ -41,3 +41,4 @@ desktop-tauri/src-tauri/binaries/
 keys/
 *.keystore
 RemoteAgent-v0.1.0-android-arm64.apk
+*.idsig
