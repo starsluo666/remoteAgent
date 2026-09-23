@@ -3510,3 +3510,41 @@ body.in-tauri .tabs {
 .page-head[data-tauri-drag-region] > button {
   pointer-events: auto;
 }
+
+/* ── 顶部标题栏（全宽可拖动窗口柄，窗口按钮嵌右上） ── */
+.app-window {
+  flex-direction: column;
+}
+.titlebar {
+  flex: none;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  user-select: none;
+}
+.titlebar-name {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text-2);
+  letter-spacing: 0.3px;
+}
+.titlebar-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  padding: 1.5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.window-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+/* 标题栏让位：窗口按钮嵌在栏内右侧 */
+.win-caps {
+  top: 3px;
+}

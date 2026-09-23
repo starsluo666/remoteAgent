@@ -2,6 +2,7 @@
 // 居中圆角应用窗口 + 侧栏「主导航/次要导航」分组 + hash 路由。
 
 import { useEffect, useState, type ReactNode } from 'react';
+import WindowCaps from './WindowCaps';
 import OverviewPage from './pages/Overview';
 import DevicesPage from './pages/Devices';
 import SessionsPage from './pages/Sessions';
@@ -103,6 +104,12 @@ export default function Shell() {
   return (
     <div className="shell">
       <div className={`app-window${LOCAL_BASE ? ' in-tauri' : ''}`}>
+        <div className="titlebar" data-tauri-drag-region>
+          <span className="titlebar-name">RemoteAgent</span>
+          <span className="titlebar-sub">{local.deviceId ? '本机' : '远程'}</span>
+        </div>
+        <WindowCaps />
+        <div className="window-body">
         <aside className="shell-side">
           <div className="brand" data-tauri-drag-region>
             <div className="logo">
@@ -136,6 +143,7 @@ export default function Shell() {
           {page === 'settings' && <SettingsPage local={local} onHelp={() => navigate('help')} />}
           {page === 'help' && <HelpPage />}
         </main>
+        </div>
 
         <nav className="bottom-nav">
           {bottomTabs.map((t) => (
