@@ -32,8 +32,12 @@ desktop/app-icon.png
 desktop/favicon.svg
 desktop/icons.svg
 desktop-tauri/src-tauri/target/
-desktop-tauri/src-tauri/gen/
 desktop-tauri/node_modules/
 desktop-tauri/app-icon.png
 desktop-tauri/src-tauri/icons/
 desktop-tauri/src-tauri/binaries/
+
+# 签名密钥（绝不入库）
+keys/
+*.keystore
+RemoteAgent-v0.1.0-android-arm64.apk

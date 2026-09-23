@@ -20,7 +20,8 @@ function tauriWindow():
 }
 
 export default function WindowCaps() {
-  if (!LOCAL_BASE) return null;
+  // Android 端无窗口概念（系统导航接管），不渲染
+  if (!LOCAL_BASE || /Android/i.test(navigator.userAgent)) return null;
   const btn = (
     title: string,
     fn: 'minimize' | 'toggleMaximize' | 'close',

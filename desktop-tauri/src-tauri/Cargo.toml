@@ -2,7 +2,11 @@
 name = "remoteagent-desktop"
 version = "0.1.0"
 edition = "2021"
-description = "RemoteAgent 桌面客户端（Tauri 2 壳，复用 web 前端）"
+description = "RemoteAgent 客户端（Tauri 2 壳，复用 web 前端；桌面端内嵌 daemon）"
+
+[lib]
+name = "remoteagent_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
