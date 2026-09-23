@@ -53,7 +53,7 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
               连接远程设备
             </button>
             <button className="ghost-btn" onClick={() => setWizardOpen(true)}>
-              ＋ 添加新设备
+              本机配对码
             </button>
           </div>
         )}

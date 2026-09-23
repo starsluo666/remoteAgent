@@ -344,7 +344,7 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
                 配置中继
               </button>
               <button className="ghost-btn" onClick={() => (location.hash = '#/devices')}>
-                添加新设备（配对码）
+                本机配对码（给手机连）
               </button>
             </div>
           </div>

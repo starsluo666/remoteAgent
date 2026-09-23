@@ -51,7 +51,7 @@ export default function AddDeviceWizard({ local, onClose }: { local: LocalInfo; 
     <div className="connect-overlay" onClick={onClose}>
       <div className="wizard" onClick={(e) => e.stopPropagation()}>
         <div className="wizard-breadcrumb">
-          设备 / <span className="accent">添加新设备</span>
+          设备 / <span className="accent">本机配对码</span>
           <button className="mini-btn" style={{ marginLeft: 'auto' }} onClick={onClose}>
             取消
           </button>
