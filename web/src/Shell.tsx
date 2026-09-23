@@ -128,7 +128,7 @@ export default function Shell() {
           </div>
         </aside>
 
-        <main className="shell-main">
+        <main className="shell-main" key={page}>
           {page === 'overview' && <OverviewPage local={local} refresh={refreshLocal} />}
           {page === 'devices' && <DevicesPage local={local} />}
           {page === 'sessions' && <SessionsPage />}

@@ -1,6 +1,6 @@
 // 概览页：AI 会话 hero + 设备身份卡（ID/令牌，令牌可编辑）+ 状态统计 + 配对链接指引
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { copyText } from '../lib/clipboard';
 import { localApi } from '../lib/local';
 import { usePoll } from '../lib/usePoll';
@@ -97,8 +97,63 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
     ? `${relayWeb}#device=${local.deviceId}&token=${local.accessToken}`
     : null;
 
+  // 下拉刷新（移动端）：页面顶界下拉 → 松手触发 refresh
+  const pageRef = useRef<HTMLDivElement>(null);
+  const [pull, setPull] = useState(0); // 0=静止 -1=刷新中 >0=拉动距离
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el || matchMedia('(min-width: 761px)').matches) return;
+    let startY = 0;
+    let active = false;
+    let dist = 0;
+    const ts = (e: TouchEvent) => {
+      if (window.scrollY <= 0 && el.getBoundingClientRect().top >= -1) {
+        startY = e.touches[0].clientY;
+        active = true;
+      }
+    };
+    const tm = (e: TouchEvent) => {
+      if (!active) return;
+      dist = e.touches[0].clientY - startY;
+      if (dist > 0 && dist < 110) setPull(dist);
+    };
+    const te = () => {
+      if (!active) return;
+      active = false;
+      if (dist > 70) {
+        setPull(-1);
+        refresh();
+        window.setTimeout(() => setPull(0), 700);
+      } else {
+        setPull(0);
+      }
+      dist = 0;
+    };
+    el.addEventListener('touchstart', ts, { passive: true });
+    el.addEventListener('touchmove', tm, { passive: true });
+    el.addEventListener('touchend', te);
+    return () => {
+      el.removeEventListener('touchstart', ts);
+      el.removeEventListener('touchmove', tm);
+      el.removeEventListener('touchend', te);
+    };
+  }, [refresh]);
+
   return (
-    <div className="page">
+    <div className="page" ref={pageRef}>
+      {pull !== 0 && (
+        <div className={`ptr-indicator ${pull === -1 ? 'pulling' : pull > 70 ? 'pulling' : ''}`}>
+          {pull === -1 ? (
+            <>
+              <span className="spin">⟳</span> 刷新中…
+            </>
+          ) : pull > 70 ? (
+            '↑ 松手刷新'
+          ) : (
+            '↓ 下拉刷新'
+          )}
+        </div>
+      )}
       <div className="page-head">
         <div>
           <div className="page-title">概览</div>

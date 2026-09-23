@@ -3398,3 +3398,99 @@ body.in-tauri .tabs {
     padding-bottom: 0;
   }
 }
+
+/* ── 移动交互层：底部弹层 / 页面过渡 / 拇指区 ───────── */
+@media (max-width: 760px) {
+  /* 弹窗变底部弹层：底部对齐、顶部圆角、上滑入场 */
+  .connect-overlay {
+    place-items: end center;
+    padding: 0;
+    align-content: end;
+  }
+  .connect-modal-stop {
+    width: 100%;
+    max-width: none;
+    border-radius: 20px 20px 0 0;
+    max-height: 86vh;
+    padding: 8px 18px calc(20px + env(safe-area-inset-bottom));
+    animation: ra-sheet-up 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+    transition: transform 0.18s ease;
+  }
+  /* 顶部拖拽把手（视觉） */
+  .connect-modal-stop::before {
+    content: '';
+    display: block;
+    width: 38px;
+    height: 4.5px;
+    border-radius: 999px;
+    background: var(--line-hi);
+    margin: 4px auto 12px;
+  }
+  .connect-modal-stop.sheet-dragging {
+    transition: none;
+  }
+  /* 拇指区：主按钮满宽、触控高度达标 */
+  .connect-go,
+  .page .primary-btn {
+    width: 100%;
+    min-height: 46px;
+    font-size: 14.5px;
+  }
+  .mini-btn {
+    min-height: 38px;
+    padding: 0 14px;
+  }
+  /* 表格行触控高度 */
+  .ra-row {
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+}
+@keyframes ra-sheet-up {
+  from {
+    transform: translateY(60px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 底部 tab 切页过渡 */
+.shell-main > .page {
+  animation: ra-page-in 0.18s ease;
+}
+@keyframes ra-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 概览下拉刷新指示 */
+.ptr-indicator {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+  transition: opacity 0.15s ease;
+  opacity: 0;
+}
+.ptr-indicator.pulling {
+  opacity: 1;
+}
+.ptr-indicator .spin {
+  display: inline-block;
+  animation: ra-spin 0.9s linear infinite;
+}
+@keyframes ra-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
