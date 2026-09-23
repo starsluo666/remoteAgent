@@ -3136,3 +3136,19 @@ html[data-theme='light'] .toast {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* 浅色主题：窗口衬底与外框适配（修"周边黑圈"） */
+html[data-theme='light'] .shell,
+html[data-theme='light'] .hero-page {
+  background: #e3e6ec;
+}
+html[data-theme='light'] .app-window {
+  border: 1px solid rgba(16, 24, 40, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(16, 24, 40, 0.05),
+    0 24px 60px rgba(16, 24, 40, 0.16);
+}
+html[data-theme='light'] .code-block {
+  background: #f6f7fa;
+  color: var(--text);
+}
