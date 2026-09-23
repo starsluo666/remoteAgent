@@ -13,3 +13,12 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// 应用挂载后淡出启动画面
+requestAnimationFrame(() => {
+  const boot = document.getElementById('boot');
+  if (boot) {
+    boot.classList.add('boot-out');
+    window.setTimeout(() => boot.remove(), 400);
+  }
+});

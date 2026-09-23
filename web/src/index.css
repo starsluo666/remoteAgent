@@ -41,3 +41,65 @@ body {
 *::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* 启动画面（index.html #boot）：React 挂载后淡出移除 */
+#boot {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--bg, #0a0c10);
+  color: var(--text-2, #9aa3b5);
+  transition: opacity 0.32s ease;
+}
+#boot.boot-out {
+  opacity: 0;
+  pointer-events: none;
+}
+#boot .boot-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, #8b7cf8 0%, #6d5ce7 55%, #5b4bd1 100%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 12px 40px rgba(109, 92, 231, 0.35);
+  animation: boot-pulse 1.6s ease-in-out infinite;
+}
+#boot .boot-logo svg {
+  width: 26px;
+  height: 26px;
+}
+#boot .boot-name {
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.4px;
+}
+#boot .boot-bar {
+  width: 120px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.18);
+  overflow: hidden;
+}
+#boot .boot-bar span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: #8b7cf8;
+  animation: boot-slide 1.2s ease-in-out infinite;
+}
+@keyframes boot-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+@keyframes boot-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}

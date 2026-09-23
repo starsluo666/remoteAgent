@@ -20,6 +20,16 @@
     />
   </head>
   <body>
+    <!-- 启动画面：React 挂载前由它顶住首帧（避免黑/白屏观感），挂载后淡出 -->
+    <div id="boot">
+      <div class="boot-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 7.5l4 4.5-4 4.5M12 16.5h7" />
+        </svg>
+      </div>
+      <div class="boot-name">RemoteAgent</div>
+      <div class="boot-bar"><span></span></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
