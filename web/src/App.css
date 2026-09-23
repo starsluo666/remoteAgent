@@ -3184,3 +3184,11 @@ html[data-theme='light'] .code-block {
 .app-window.in-tauri .page-head {
   padding-right: 118px;
 }
+
+/* 窗口按钮提升为应用级（fixed），终端页签条同样让位 */
+.win-caps {
+  position: fixed;
+}
+body.in-tauri .tabs {
+  padding-right: 118px;
+}

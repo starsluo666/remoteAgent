@@ -9,7 +9,8 @@ import Connect from './Connect';
 import Shell from './Shell';
 import LandingHero from './LandingHero';
 import { target } from './lib/target';
-import { localApi } from './lib/local';
+import { localApi, LOCAL_BASE } from './lib/local';
+import WindowCaps from './WindowCaps';
 import './App.css';
 
 /** 无参数落地：探测本机 daemon（JSON 响应判定）→ 桌面应用；否则 落地页 → 连接页 */
@@ -35,6 +36,12 @@ function Landing() {
 }
 
 export default function App() {
-  if (target()) return <TerminalApp />;
-  return <Landing />;
+  // 窗口控制常驻右上角（仅桌面壳）；各页面为其让位
+  if (LOCAL_BASE) document.body.classList.add('in-tauri');
+  return (
+    <>
+      <WindowCaps />
+      {target() ? <TerminalApp /> : <Landing />}
+    </>
+  );
 }

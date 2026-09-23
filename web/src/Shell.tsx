@@ -12,44 +12,6 @@ import { usePoll } from './lib/usePoll';
 import { localApi, LOCAL_BASE } from './lib/local';
 import type { LocalInfo } from './pages/types';
 
-/** 桌面壳窗口控制（无边框窗口的自绘按钮，经 withGlobalTauri 注入的 API） */
-function tauriWindow(): {
-  minimize: () => Promise<void>;
-  toggleMaximize: () => Promise<void>;
-  close: () => Promise<void>;
-} | undefined {
-  const w = window as unknown as {
-    __TAURI__?: { window?: { getCurrentWindow?: () => unknown } };
-  };
-  const win = w.__TAURI__?.window?.getCurrentWindow?.() as
-    | { minimize: () => Promise<void>; toggleMaximize: () => Promise<void>; close: () => Promise<void> }
-    | undefined;
-  return win;
-}
-
-function WindowCaps() {
-  if (!LOCAL_BASE) return null;
-  const btn = (label: string, title: string, fn: 'minimize' | 'toggleMaximize' | 'close') => (
-    <button
-      className="win-cap"
-      title={title}
-      onClick={() => {
-        const w = tauriWindow();
-        if (w) void w[fn]();
-      }}
-    >
-      {label}
-    </button>
-  );
-  return (
-    <div className="win-caps" data-tauri-drag-region>
-      {btn('—', '最小化', 'minimize')}
-      {btn('□', '最大化 / 还原', 'toggleMaximize')}
-      {btn('✕', '关闭', 'close')}
-    </div>
-  );
-}
-
 const PAGES = ['overview', 'devices', 'sessions', 'relay', 'settings', 'help'] as const;
 type PageId = (typeof PAGES)[number];
 
@@ -132,7 +94,6 @@ export default function Shell() {
   return (
     <div className="shell">
       <div className={`app-window${LOCAL_BASE ? ' in-tauri' : ''}`}>
-        <WindowCaps />
         <aside className="shell-side">
           <div className="brand" data-tauri-drag-region>
             <div className="logo">
