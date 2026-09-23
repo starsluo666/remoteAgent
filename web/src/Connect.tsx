@@ -159,7 +159,7 @@ export default function Connect({ onClose }: { onClose: () => void }) {
         </svg>
       </div>
       <div className="connect-title">连接远程设备</div>
-      <div className="connect-sub">已配对的设备一键连接；新设备粘贴配对链接，或输入设备号 + 访问令牌</div>
+      <div className="connect-sub">已配对的设备一键连接；新设备选中中继后输入设备号 + 访问令牌</div>
 
       {recents.length > 0 && (
         <div className="recents">

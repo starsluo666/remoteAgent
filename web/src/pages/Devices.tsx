@@ -63,7 +63,7 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
         <div className="panel-card">
           <div className="panel-title">连接设备</div>
           <div className="info-hint">
-            粘贴家里电脑的配对链接（家机面板概览页一键复制），连接后即可查看它的 AI 会话与终端。
+            中继已在「中继服务」页记住，输入 9 位设备号与访问令牌即可连接；也可粘贴配对链接自动填入。
           </div>
           <div className="quick-actions" style={{ marginTop: 12 }}>
             <button className="primary-btn" onClick={() => setConnectOpen(true)}>
