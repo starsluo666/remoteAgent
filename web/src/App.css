@@ -3229,3 +3229,18 @@ body.in-tauri .tabs {
   border-color: transparent;
   color: #fff;
 }
+
+/* 进入按钮：图标间距内联 */
+.hero-cta.big {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.hero-cta.big svg {
+  width: 15px;
+  height: 15px;
+  transition: transform 0.15s ease;
+}
+.hero-cta.big:hover svg {
+  transform: translateX(3px);
+}

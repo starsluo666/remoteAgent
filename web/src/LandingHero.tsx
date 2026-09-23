@@ -15,7 +15,7 @@ export default function LandingHero({ onEnter }: { onEnter: () => void }) {
             <span className="hero-ver">v0.1</span>
           </div>
           <button className="hero-cta" onClick={onEnter}>
-            连接到设备 →
+            进入 →
           </button>
         </nav>
 
@@ -33,9 +33,12 @@ export default function LandingHero({ onEnter }: { onEnter: () => void }) {
             </p>
             <div className="hero-actions">
               <button className="hero-cta big" onClick={onEnter}>
-                连接到设备
+                进入应用
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 8h9M8.5 4.5L12 8l-3.5 3.5" />
+                </svg>
               </button>
-              <span className="hero-hint">需要设备 ID + 访问令牌（在本机 127.0.0.1:9800 查看）</span>
+              <span className="hero-hint">粘贴配对链接即连，或输入设备号 + 访问令牌</span>
             </div>
           </div>
           <div className="hero-art">
@@ -72,7 +75,7 @@ export default function LandingHero({ onEnter }: { onEnter: () => void }) {
           <div className="hero-card">
             <div className="hc-ico">🤖</div>
             <div className="hc-title">AI 会话感知</div>
-            <div className="hc-sub">识别 Agent 状态、Token 消耗与快捷接管（即将支持）</div>
+            <div className="hc-sub">识别 Codex 运行状态与 Token 消耗，任务完成推送到手机</div>
           </div>
         </div>
 
