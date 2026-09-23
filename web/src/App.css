@@ -3273,3 +3273,24 @@ body.in-tauri .tabs {
 .recent-go {
   flex: none;
 }
+
+/* 远程外壳（手机）：侧栏收窄为图标栏 */
+@media (max-width: 760px) {
+  .shell-side {
+    width: 56px;
+    padding: 12px 8px;
+  }
+  .shell-side .brand-text,
+  .shell-side .nav-group-title,
+  .shell-side .nav-item span,
+  .shell-side .shell-foot-text {
+    display: none;
+  }
+  .shell-side .nav-item {
+    justify-content: center;
+    padding: 11px 0;
+  }
+  .shell-side .shell-foot {
+    justify-content: center;
+  }
+}

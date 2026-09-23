@@ -5,12 +5,12 @@
 
 import { useEffect, useState } from 'react';
 import TerminalApp from './TerminalApp';
-import Connect from './Connect';
 import Shell from './Shell';
 import LandingHero from './LandingHero';
 import { target } from './lib/target';
 import { localApi, LOCAL_BASE } from './lib/local';
 import WindowCaps from './WindowCaps';
+import RemoteShell from './RemoteShell';
 import './App.css';
 
 /** 无参数落地：探测本机 daemon（JSON 响应判定）→ 桌面应用；否则 落地页 → 连接页 */
@@ -28,11 +28,11 @@ function Landing() {
   }, []);
   if (mode === 'checking') return <div className="connect-page" />;
   if (mode === 'local') return <Shell />;
-  // 中继站点：先展示落地页，点击进入连接页（浏览器返回可再回落地页）
+  // 中继站点：落地页 → 进入应用（主导航外壳，默认概览；连接表单并入概览）
   if (!entered && !location.hash.includes('connect')) {
     return <LandingHero onEnter={() => setEntered(true)} />;
   }
-  return <Connect />;
+  return <RemoteShell />;
 }
 
 export default function App() {
