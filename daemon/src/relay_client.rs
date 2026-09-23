@@ -5,17 +5,13 @@
 //!   3) 验证通过后 X25519 握手派生会话密钥，全部载荷 AES-256-GCM 加密（enc 信封）。
 //! 未认证客户端的消息（除 auth.proof/ping）一律拒绝；认证后拒绝明文载荷（防降级）。
 
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::config::Identity;
 use crate::crypto::{Handshake, SessionCrypto};
 use crate::protocol::{ClientMsg, DaemonMsg};
-use crate::session::SessionEvent;
-use crate::ws::{handle_msg, AppState};
+use crate::ws::AppState;
 
 pub async fn run_relay_mode(
     url: String,
@@ -40,7 +36,7 @@ pub async fn run_relay_mode(
         if *stop.borrow() {
             break;
         }
-        state.sessions.clear_subscribers();
+        // 会话存活在宿主进程，重连即接管（M9 持久化）
         state
             .local
             .set_relay_note(false, format!("{backoff_secs} 秒后重试"));
@@ -102,7 +98,7 @@ async fn connect_and_run(
         _ => anyhow::bail!("relay closed before hello_ack"),
     }
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<(String, SessionEvent)>();
+    let mut events = state.host.subscribe();
     let mut crypto: Option<SessionCrypto> = None;
     // 保活：周期 ping 维持 NAT/防火墙映射，配合中继读超时及时发现半开连接
     let mut ping_tick = tokio::time::interval(std::time::Duration::from_secs(30));
@@ -130,29 +126,15 @@ async fn connect_and_run(
                     auth_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
                 }
             }
-            evt = rx.recv() => {
-                let Some((sid, evt)) = evt else { break };
+            evt = events.recv() => {
                 let msg = match evt {
-                    SessionEvent::Output(chunk, seq) => DaemonMsg::Output {
-                        session_id: sid.clone(),
-                        seq,
-                        data: STANDARD.encode(chunk),
-                    },
-                    SessionEvent::Exited(code) => {
-                        state.sessions.remove(&sid);
-                        DaemonMsg::SessionExited { session_id: sid, exit_code: code }
+                    Ok(m) => m,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        // 消费过慢丢帧：终端内容靠重连快照兜底，这里只记录
+                        tracing::warn!(missed = n, "event fanout lagged");
+                        continue;
                     }
-                    SessionEvent::Agent(snap) => DaemonMsg::AgentStatus {
-                        session_id: sid.clone(),
-                        agent: snap.agent,
-                        status: match snap.status {
-                            crate::detector::AgentStatus::Starting => "starting".into(),
-                            crate::detector::AgentStatus::Working => "working".into(),
-                            crate::detector::AgentStatus::Error => "error".into(),
-                            crate::detector::AgentStatus::Finished => "finished".into(),
-                        },
-                        detail: snap.detail,
-                    },
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break 'conn,
                 };
                 let frame = serde_json::to_string(&msg)?;
                 let wire = match &crypto {
@@ -263,7 +245,7 @@ async fn connect_and_run(
                     _ => {}
                 }
 
-                let replies = handle_msg(state, &tx, client_msg);
+                let replies = state.host.request(client_msg).await;
                 for r in replies {
                     let frame = serde_json::to_string(&r)?;
                     let wire = match &crypto {

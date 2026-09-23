@@ -1,5 +1,6 @@
-//! 本地模式 WS 服务：/ws 处理协议消息，静态托管 web/dist。
-//! M2 起本模块的角色变为"到中继的出站连接"，消息处理逻辑保持复用。
+//! 本地模式 WS 服务：/ws 接入本地 viewer。
+//! M9 起会话逻辑住在宿主进程（host_server），本模块只做 socket 与代理；
+//! 事件经 SessionHost 广播下发。
 
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -7,17 +8,14 @@ use std::sync::Arc;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::response::Response;
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::mpsc;
 
 use crate::protocol::{ClientMsg, DaemonMsg};
-use crate::session::{SessionEvent, SessionManager};
 
 #[derive(Clone)]
 pub struct AppState {
-    pub sessions: Arc<SessionManager>,
+    /// 会话宿主客户端（M9 持久化：PTY 活在独立宿主进程，daemon 只做代理）
+    pub host: Arc<crate::host_client::SessionHost>,
     /// 本机信息：/api/local 面板展示与中继控制（仅 127.0.0.1 可见）
     pub local: Arc<LocalShared>,
     /// 身份可变（自定义令牌热更新，验证点每次握手现读）
@@ -198,39 +196,23 @@ async fn handle_socket_inner(mut socket: WebSocket, state: AppState) -> anyhow::
         .send(Message::Text(serde_json::to_string(&ack)?.into()))
         .await?;
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<(String, SessionEvent)>();
+    let mut events = state.host.subscribe();
     let (mut sink, mut stream) = socket.split();
 
     'conn: loop {
         tokio::select! {
-            evt = rx.recv() => {
-                let Some((sid, evt)) = evt else { break };
+            evt = events.recv() => {
                 let msg = match evt {
-                    SessionEvent::Output(chunk, seq) => DaemonMsg::Output {
-                        session_id: sid.clone(),
-                        seq,
-                        data: STANDARD.encode(chunk),
-                    },
-                    SessionEvent::Exited(code) => {
-                        state.sessions.remove(&sid);
-                        DaemonMsg::SessionExited { session_id: sid.clone(), exit_code: code }
+                    Ok(m) => m,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!(missed = n, "event fanout lagged");
+                        continue;
                     }
-                    SessionEvent::Agent(snap) => DaemonMsg::AgentStatus {
-                        session_id: sid.clone(),
-                        agent: snap.agent,
-                        status: match snap.status {
-                            crate::detector::AgentStatus::Starting => "starting".into(),
-                            crate::detector::AgentStatus::Working => "working".into(),
-                            crate::detector::AgentStatus::Error => "error".into(),
-                            crate::detector::AgentStatus::Finished => "finished".into(),
-                        },
-                        detail: snap.detail,
-                    },
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 };
                 if sink.send(Message::Text(serde_json::to_string(&msg)?.into())).await.is_err() {
                     break;
                 }
-                let _ = sid;
             }
             msg = stream.next() => {
                 let msg = match msg {
@@ -241,7 +223,7 @@ async fn handle_socket_inner(mut socket: WebSocket, state: AppState) -> anyhow::
                 match msg {
                     Message::Text(text) => {
                         let replies = match serde_json::from_str::<ClientMsg>(&text) {
-                            Ok(m) => handle_msg(&state, &tx, m),
+                            Ok(m) => state.host.request(m).await,
                             Err(e) => vec![DaemonMsg::Error {
                                 req_id: None,
                                 code: "protocol_error".into(),
@@ -266,123 +248,6 @@ async fn handle_socket_inner(mut socket: WebSocket, state: AppState) -> anyhow::
         }
     }
 
-    state.sessions.clear_subscribers();
     tracing::info!("client disconnected");
     Ok(())
-}
-
-/// 处理一条客户端消息，返回需要回发的消息（可能为空）。
-/// 推送类事件（output/exited）走 session 订阅通道，不在这里。
-pub(crate) fn handle_msg(
-    state: &AppState,
-    tx: &crate::session::EventTx,
-    msg: ClientMsg,
-) -> Vec<DaemonMsg> {
-    match msg {
-        ClientMsg::Ping => vec![DaemonMsg::Pong],
-        ClientMsg::Hello { .. } => vec![], // 已在握手阶段处理
-        // 中继模式在认证门处理；本地模式不应出现
-        ClientMsg::AuthProof { .. } => vec![DaemonMsg::Error {
-            req_id: None,
-            code: "protocol_error".into(),
-            msg: "auth.proof only valid in relay mode".into(),
-        }],
-
-        ClientMsg::SessionList { req_id } => vec![DaemonMsg::SessionListResult {
-            req_id,
-            sessions: state.sessions.list(),
-        }],
-
-        ClientMsg::SessionCreate { req_id, cols, rows, cwd, cmd } => {
-            match state.sessions.create(cols, rows, cwd.as_deref(), cmd.as_deref()) {
-                Ok(s) => vec![DaemonMsg::SessionCreated { req_id, session_id: s.id.clone() }],
-                Err(e) => vec![DaemonMsg::Error {
-                    req_id: Some(req_id),
-                    code: "spawn_failed".into(),
-                    msg: e.to_string(),
-                }],
-            }
-        }
-
-        ClientMsg::SessionAttach { req_id, session_id } => {
-            match state.sessions.get(&session_id) {
-                Some(s) => {
-                    s.set_subscriber(tx.clone());
-                    let (bytes, seq) = s.snapshot();
-                    vec![
-                        DaemonMsg::SessionAttached { req_id, session_id: s.id.clone() },
-                        DaemonMsg::Snapshot {
-                            session_id: s.id.clone(),
-                            seq,
-                            data: STANDARD.encode(bytes),
-                        },
-                    ]
-                }
-                None => vec![DaemonMsg::Error {
-                    req_id: Some(req_id),
-                    code: "session_not_found".into(),
-                    msg: format!("no session {session_id}"),
-                }],
-            }
-        }
-
-        ClientMsg::SessionKill { req_id, session_id } => {
-            match state.sessions.get(&session_id) {
-                Some(s) => {
-                    // 进程可能已退出，kill 失败不视为错误；exited 事件由 wait 线程发出
-                    if let Err(e) = s.kill() {
-                        tracing::debug!(session = %session_id, error = %e, "kill (may already be dead)");
-                    }
-                    // kill 语义即"删除"：已死会话的 wait 线程早已结束，
-                    // 不会再有 exited 事件 —— 这里必须无条件清条目，否则死会话关不掉
-                    state.sessions.remove(&session_id);
-                    vec![DaemonMsg::SessionKilled { req_id, session_id }]
-                }
-                None => vec![DaemonMsg::Error {
-                    req_id: Some(req_id),
-                    code: "session_not_found".into(),
-                    msg: format!("no session {session_id}"),
-                }],
-            }
-        }
-
-        ClientMsg::Input { session_id, data } => {
-            match (state.sessions.get(&session_id), STANDARD.decode(&data)) {
-                (Some(s), Ok(bytes)) => {
-                    if let Err(e) = s.write_input(&bytes) {
-                        vec![DaemonMsg::Error {
-                            req_id: None,
-                            code: "internal".into(),
-                            msg: e.to_string(),
-                        }]
-                    } else {
-                        vec![]
-                    }
-                }
-                (Some(_), Err(e)) => vec![DaemonMsg::Error {
-                    req_id: None,
-                    code: "protocol_error".into(),
-                    msg: format!("bad base64: {e}"),
-                }],
-                (None, _) => vec![DaemonMsg::Error {
-                    req_id: None,
-                    code: "session_not_found".into(),
-                    msg: format!("no session {session_id}"),
-                }],
-            }
-        }
-
-        ClientMsg::Resize { session_id, cols, rows } => {
-            if let Some(s) = state.sessions.get(&session_id) {
-                if let Err(e) = s.resize(cols, rows) {
-                    return vec![DaemonMsg::Error {
-                        req_id: None,
-                        code: "internal".into(),
-                        msg: e.to_string(),
-                    }];
-                }
-            }
-            vec![]
-        }
-    }
 }

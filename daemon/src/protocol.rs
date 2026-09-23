@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 /// 客户端 → daemon（M2 起 relay 透传，M1 直连）
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all_fields = "camelCase")]
 pub enum ClientMsg {
     #[serde(rename = "hello")]
@@ -45,7 +45,7 @@ pub enum ClientMsg {
 }
 
 /// daemon → 客户端
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all_fields = "camelCase")]
 pub enum DaemonMsg {
     #[serde(rename = "hello_ack")]
@@ -77,7 +77,7 @@ pub enum DaemonMsg {
     Error { req_id: Option<u64>, code: String, msg: String },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInfo {
     pub id: String,

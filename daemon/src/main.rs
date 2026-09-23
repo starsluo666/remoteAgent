@@ -5,6 +5,8 @@
 mod config;
 mod detector;
 mod crypto;
+mod host_client;
+mod host_server;
 mod protocol;
 mod relay_client;
 mod session;
@@ -38,6 +40,12 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // 会话宿主模式：常驻进程持有全部 PTY（M9 持久化），daemon 崩溃/升级不影响会话
+    if std::env::args().any(|a| a == "--session-host") {
+        host_server::run().await?;
+        return Ok(());
+    }
+
     let identity = config::load_or_create()?;
 
     let relay_url = std::env::args().nth(1).and_then(|a| {
@@ -60,8 +68,11 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or_else(|| "默认中继".into())
     };
 
+    // 连接（或拉起）会话宿主：PTY 会话从此独立于 daemon 生命周期
+    let host = Arc::new(host_client::SessionHost::start().await?);
+
     let state = ws::AppState {
-        sessions: Arc::new(session::SessionManager::new()),
+        host,
         local: Arc::new(ws::LocalShared::new(
             identity.device_id.clone(),
             identity.access_token.clone(),
@@ -317,7 +328,7 @@ pub async fn http_get_json(url: String) -> anyhow::Result<serde_json::Value> {
 async fn list_sessions(
     axum::extract::State(state): axum::extract::State<ws::AppState>,
 ) -> axum::Json<serde_json::Value> {
-    let sessions: Vec<crate::protocol::SessionInfo> = state.sessions.list();
+    let sessions: Vec<crate::protocol::SessionInfo> = state.host.list().await;
     axum::Json(serde_json::json!({ "sessions": sessions }))
 }
 
