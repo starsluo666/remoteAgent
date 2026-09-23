@@ -40,8 +40,8 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div data-tauri-drag-region>
+      <div className="page-head" data-tauri-drag-region>
+        <div>
           <div className="page-title">设备</div>
           <div className="page-sub">
             {remote ? '连接你的电脑，查看并接管它的终端会话' : '本机设备状态；连接其他设备请使用对方发来的配对链接'}

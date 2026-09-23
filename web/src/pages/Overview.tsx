@@ -154,8 +154,8 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
           )}
         </div>
       )}
-      <div className="page-head">
-        <div data-tauri-drag-region>
+      <div className="page-head" data-tauri-drag-region>
+        <div>
           <div className="page-title">概览</div>
           <div className="page-sub">设备身份与终端会话总览</div>
         </div>

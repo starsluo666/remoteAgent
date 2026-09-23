@@ -3504,3 +3504,9 @@ body.in-tauri .tabs {
 .win-caps[data-tauri-drag-region] > * {
   pointer-events: auto;
 }
+
+/* 顶栏整行可拖（页面标题区），按钮豁免 */
+.page-head[data-tauri-drag-region] > .head-actions,
+.page-head[data-tauri-drag-region] > button {
+  pointer-events: auto;
+}

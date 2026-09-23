@@ -3,8 +3,8 @@
 export default function HelpPage() {
   return (
     <div className="page">
-      <div className="page-head">
-        <div data-tauri-drag-region>
+      <div className="page-head" data-tauri-drag-region>
+        <div>
           <div className="page-title">帮助</div>
           <div className="page-sub">快速上手与常见问题</div>
         </div>

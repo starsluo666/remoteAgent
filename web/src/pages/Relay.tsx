@@ -27,8 +27,8 @@ export default function RelayPage({ local, refresh }: Props) {
   if (!local.deviceId) {
     return (
       <div className="page">
-        <div className="page-head">
-          <div data-tauri-drag-region>
+        <div className="page-head" data-tauri-drag-region>
+          <div>
             <div className="page-title">中继服务</div>
             <div className="page-sub">远程端 · 只读</div>
           </div>
@@ -98,8 +98,8 @@ export default function RelayPage({ local, refresh }: Props) {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div data-tauri-drag-region>
+      <div className="page-head" data-tauri-drag-region>
+        <div>
           <div className="page-title">中继服务</div>
           <div className="page-sub">连接你的自建中继，外网设备经它转发</div>
         </div>

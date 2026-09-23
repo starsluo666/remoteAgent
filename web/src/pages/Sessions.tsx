@@ -41,8 +41,8 @@ export default function SessionsPage({ remote = false }: { remote?: boolean }) {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div data-tauri-drag-region>
+      <div className="page-head" data-tauri-drag-region>
+        <div>
           <div className="page-title">Sessions</div>
           <div className="page-sub">监控与恢复 · {sessions.length} 个运行中</div>
         </div>
