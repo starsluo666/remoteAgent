@@ -1259,12 +1259,12 @@ button:disabled {
   line-height: 1.5;
 }
 
-/* ── 本机桌面应用（Shell + 页面） ─────────── */
+/* ── 本机桌面应用（Shell + 页面）：全出血，无衬底 ─────────── */
 .shell {
   display: flex;
   height: 100vh;
   height: 100dvh;
-  background: #060709;
+  background: var(--bg);
   overflow: hidden;
 }
 
@@ -1772,12 +1772,11 @@ button:disabled {
   }
 }
 
-/* ── 应用窗口化（设计稿：居中圆角窗口） ────────── */
+/* ── 应用窗口：全出血（用户决策：去掉外圈衬底，内容铺满窗口） ────────── */
 .shell {
   height: 100vh;
   height: 100dvh;
-  background: #050508;
-  padding: 18px;
+  background: var(--bg);
   display: flex;
   overflow: hidden;
 }
@@ -1786,12 +1785,7 @@ button:disabled {
   flex: 1;
   min-width: 0;
   display: flex;
-  border-radius: 16px;
   background: var(--bg);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.6),
-    0 30px 80px rgba(0, 0, 0, 0.55);
   overflow: hidden;
 }
 
@@ -3137,18 +3131,56 @@ html[data-theme='light'] .toast {
   font-weight: 600;
 }
 
-/* 浅色主题：窗口衬底与外框适配（修"周边黑圈"） */
-html[data-theme='light'] .shell,
+/* 浅色主题：落地页衬底（面板已全出血无衬底） */
 html[data-theme='light'] .hero-page {
   background: #e3e6ec;
-}
-html[data-theme='light'] .app-window {
-  border: 1px solid rgba(16, 24, 40, 0.08);
-  box-shadow:
-    0 0 0 1px rgba(16, 24, 40, 0.05),
-    0 24px 60px rgba(16, 24, 40, 0.16);
 }
 html[data-theme='light'] .code-block {
   background: #f6f7fa;
   color: var(--text);
+}
+
+/* ── 桌面壳自绘窗口按钮（无边框窗口） ───────────────── */
+.win-caps {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 50;
+  display: flex;
+  gap: 2px;
+}
+.win-cap {
+  width: 34px;
+  height: 28px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  transition: all 0.12s ease;
+}
+.win-cap:hover {
+  background: var(--card-hi);
+  color: var(--text);
+}
+.win-cap:last-child:hover {
+  background: var(--red);
+  color: #fff;
+}
+/* 为角落按钮让位，避免盖住页面头部的主按钮 */
+.page-head {
+  padding-right: 118px;
+}
+.app-window {
+  position: relative;
+}
+/* 让位仅桌面壳需要（自绘窗口按钮在右上角） */
+.page-head {
+  padding-right: 0;
+}
+.app-window.in-tauri .page-head {
+  padding-right: 118px;
 }
