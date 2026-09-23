@@ -83,7 +83,7 @@ export default function SettingsPage({
   return (
     <div className="page">
       <div className="page-head">
-        <div>
+        <div data-tauri-drag-region>
           <div className="page-title">设置</div>
           <div className="page-sub">本机 daemon 的身份与偏好</div>
         </div>

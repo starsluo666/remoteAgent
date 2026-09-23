@@ -28,7 +28,7 @@ export default function RelayPage({ local, refresh }: Props) {
     return (
       <div className="page">
         <div className="page-head">
-          <div>
+          <div data-tauri-drag-region>
             <div className="page-title">中继服务</div>
             <div className="page-sub">远程端 · 只读</div>
           </div>
@@ -63,7 +63,6 @@ export default function RelayPage({ local, refresh }: Props) {
       if (!r.ok) throw new Error((await r.text()) || '请求失败');
       refresh();
     });
-
   const run = (fn: () => Promise<void>) => () => {
     setBusy(true);
     setError(null);
@@ -81,7 +80,11 @@ export default function RelayPage({ local, refresh }: Props) {
     setLatency(Math.round(performance.now() - t0));
   });
 
-  const connect = (url: string) => run(() => post('/api/local/relay', { url }));
+  // 注意：run(fn) 返回 runner —— 带参动作必须立即执行（此前写成返回 runner 未调用，
+  // 表现为点击连接/删除毫无反应：无请求、无报错、无 busy）
+  const connect = (url: string) => {
+    run(() => post('/api/local/relay', { url }))();
+  };
   const disconnect = run(() => post('/api/local/relay', { url: null }));
   const addRelay = run(async () => {
     await post('/api/local/relays', { action: 'add', name: addName, url: addUrl });
@@ -89,12 +92,14 @@ export default function RelayPage({ local, refresh }: Props) {
     setAddName('');
     setAddUrl('');
   });
-  const removeRelay = (url: string) => run(() => post('/api/local/relays', { action: 'remove', url }));
+  const removeRelay = (url: string) => {
+    run(() => post('/api/local/relays', { action: 'remove', url }))();
+  };
 
   return (
     <div className="page">
       <div className="page-head">
-        <div>
+        <div data-tauri-drag-region>
           <div className="page-title">中继服务</div>
           <div className="page-sub">连接你的自建中继，外网设备经它转发</div>
         </div>

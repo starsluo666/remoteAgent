@@ -3494,3 +3494,13 @@ body.in-tauri .tabs {
     transform: rotate(360deg);
   }
 }
+
+/* 拖拽区修复：Tauri 只认事件目标自身命中 data-tauri-drag-region，
+   点到子元素不算 —— 拖拽区内的非交互子元素全部穿透，整块可拖。
+   win-caps 的按钮需要保持可点，单独恢复。 */
+[data-tauri-drag-region] > * {
+  pointer-events: none;
+}
+.win-caps[data-tauri-drag-region] > * {
+  pointer-events: auto;
+}
