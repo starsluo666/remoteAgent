@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -15,6 +16,20 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true }, // M3 收紧
+}
+
+// cacheHeaders：index.html 永远回源校验（否则浏览器缓存旧入口、
+// 引用旧 assets，前端更新永远到不了用户）；带哈希的 assets 长缓存。
+func cacheHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		if strings.HasPrefix(p, "/assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +202,7 @@ func main() {
 
 	if *webDir != "" {
 		if st, err := os.Stat(*webDir); err == nil && st.IsDir() {
-			mux.Handle("/", http.FileServer(http.Dir(*webDir)))
+			mux.Handle("/", cacheHeaders(http.FileServer(http.Dir(*webDir))))
 			log.Printf("serving web client from %s", *webDir)
 		} else {
 			log.Printf("web dir %s not found, static serving disabled", *webDir)
