@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { localApi } from '../lib/local';
+import { addClientRelay, loadClientRelays, normalizeClientRelay, removeClientRelay } from '../lib/relays';
 import { relayHttpBase } from '../lib/target';
 import type { LocalInfo } from './types';
 
@@ -23,27 +24,8 @@ function uptime(from: number): string {
 }
 
 export default function RelayPage({ local, refresh }: Props) {
-  // 远程端（手机/浏览器访客，本机无 daemon）：中继配置在家里电脑的面板做
-  if (!local.deviceId) {
-    return (
-      <div className="page">
-        <div className="page-head" data-tauri-drag-region>
-          <div>
-            <div className="page-title">中继服务</div>
-            <div className="page-sub">远程端 · 只读</div>
-          </div>
-        </div>
-        <div className="panel-card">
-          <div className="panel-title">中继由家里电脑连接</div>
-          <div className="info-hint">
-            daemon 在家里电脑上注册中继后，你在这里即可看到设备状态。
-            中继地址、多中继管理等配置请在家里电脑的面板（中继服务页）操作；
-            手机连接设备用「设备 → 连接远程设备」粘贴配对链接。
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // 远程端（手机/浏览器访客，本机无 daemon）：这里管理"我的中继"（客户端列表）
+  if (!local.deviceId) return <ClientRelayManager />;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [latency, setLatency] = useState<number | null>(null);
@@ -308,6 +290,112 @@ function Gauge({ online, latency }: { online: boolean; latency: number | null })
           {online ? 'ms' : ''}
         </text>
       </svg>
+    </div>
+  );
+}
+
+/* ── 远程端：我的中继（客户端列表，存 localStorage） ────────── */
+function ClientRelayManager() {
+  const [relays, setRelays] = useState(() => loadClientRelays());
+  const [url, setUrl] = useState('');
+  const [name, setName] = useState('');
+  const [lat, setLat] = useState<Record<string, number | '…' | 'err'>>({});
+
+  const add = () => {
+    const u = normalizeClientRelay(url);
+    if (!u) return;
+    setRelays(addClientRelay(u, name));
+    setUrl('');
+    setName('');
+  };
+
+  const test = async (u: string) => {
+    setLat((m) => ({ ...m, [u]: '…' }));
+    const base = u.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://').replace(/\/ws$/, '');
+    const t0 = performance.now();
+    try {
+      const r = await fetch(`${base}/health`, { cache: 'no-store' });
+      setLat((m) => ({ ...m, [u]: r.ok ? Math.round(performance.now() - t0) : 'err' }));
+    } catch {
+      setLat((m) => ({ ...m, [u]: 'err' }));
+    }
+  };
+
+  return (
+    <div className="page">
+      <div className="page-head" data-tauri-drag-region>
+        <div>
+          <div className="page-title">中继服务</div>
+          <div className="page-sub">我的中继 —— 加一次，之后连接设备只需设备号 + 令牌</div>
+        </div>
+      </div>
+
+      <div className="panel-card">
+        <div className="panel-title">添加中继</div>
+        <div className="field">
+          <label>中继地址</label>
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="wss://relay.example.com/ws 或 relay.example.com"
+            spellCheck={false}
+          />
+        </div>
+        <div className="field">
+          <label>名称（可选）</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="家里服务器" spellCheck={false} />
+        </div>
+        <button className="primary-btn" onClick={add}>
+          添加
+        </button>
+      </div>
+
+      {relays.length > 0 && (
+        <div className="ra-table">
+          <div className="ra-row head">
+            <div className="col-name">中继</div>
+            <div className="col-url">地址</div>
+            <div className="col-state">延迟</div>
+            <div className="col-act">操作</div>
+          </div>
+          {relays.map((r) => {
+            const v = lat[r.url];
+            return (
+              <div className="ra-row" key={r.url}>
+                <div className="col-name">
+                  <div className="row-title">{r.name || '未命名'}</div>
+                </div>
+                <div className="col-url mono">{r.url.replace(/^wss?:\/\//, '')}</div>
+                <div className="col-state mono">
+                  {v === undefined ? (
+                    <button className="mini-btn" onClick={() => void test(r.url)}>
+                      测试
+                    </button>
+                  ) : v === '…' ? (
+                    '…'
+                  ) : v === 'err' ? (
+                    <span className="pill off">不通</span>
+                  ) : (
+                    <span className="pill on">{v} ms</span>
+                  )}
+                </div>
+                <div className="col-act">
+                  <button
+                    className="mini-btn danger"
+                    onClick={() => setRelays(removeClientRelay(r.url))}
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="info-hint">
+        💡 添加中继后，「设备 → 连接远程设备」会默认选中它 —— 新设备只要输入 9 位设备号和访问令牌即可连接，无需再传配对链接。
+      </div>
     </div>
   );
 }

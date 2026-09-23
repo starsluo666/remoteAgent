@@ -3,6 +3,15 @@
 
 import { useEffect, useState } from 'react';
 import { paramsOf } from './lib/target';
+import {
+  addClientRelay,
+  getLastRelay,
+  loadClientRelays,
+  removeClientRelay,
+  setLastRelay,
+  normalizeClientRelay,
+  type ClientRelay,
+} from './lib/relays';
 
 export interface SavedConn {
   url: string; // 完整配对 href（含 query），重连直接跳转
@@ -90,17 +99,31 @@ export default function Connect({ onClose }: { onClose: () => void }) {
   const [device, setDevice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recents, setRecents] = useState<SavedConn[]>([]);
+  // 客户端中继列表：加一次中继，此后连接只输设备号 + 令牌
+  const [relays, setRelays] = useState<ClientRelay[]>(() => loadClientRelays());
+  const [selectedRelay, setSelectedRelay] = useState<string>(() => getLastRelay() ?? '');
+  const [addingRelay, setAddingRelay] = useState(() => loadClientRelays().length === 0);
 
   useEffect(() => {
     setRecents(loadConns());
+    // 初始选中：上次用的 → 列表第一个
+    const list = loadClientRelays();
+    const last = getLastRelay();
+    if (last && list.some((r) => r.url === last)) setSelectedRelay(last);
+    else if (list[0]) setSelectedRelay(list[0].url);
   }, []);
 
-  // 粘贴即解析：识别出配对链接后自动选中设备并填入令牌
+  // 粘贴即解析：识别出配对链接后自动选中设备并填入令牌；链接里的中继顺手记住
   const onPaste = (text: string) => {
     setPaste(text);
     const f = parsePairText(text);
     if (f) {
-      setRelay(f.relay ?? '');
+      if (f.relay) {
+        addClientRelay(f.relay);
+        setRelays(loadClientRelays());
+        setRelay(f.relay);
+        setAddingRelay(false);
+      }
       setDevice(f.device);
       setToken(f.token);
       setError(null);
@@ -109,10 +132,23 @@ export default function Connect({ onClose }: { onClose: () => void }) {
 
   const connect = () => {
     if (!device || !token.trim()) {
-      setError('请先粘贴配对链接，或手动输入设备 ID 与访问令牌');
+      setError('请先粘贴配对链接，或选择中继并输入设备号与访问令牌');
       return;
     }
-    location.assign(buildHref({ relay: normalizeRelay(relay), device, token: token.trim() }));
+    let r = relay.trim() ? normalizeClientRelay(relay) : null;
+    if (r) {
+      addClientRelay(r);
+      setRelays(loadClientRelays());
+      setAddingRelay(false);
+    } else {
+      r = selectedRelay;
+    }
+    if (!r) {
+      setError('请选择或输入中继地址');
+      return;
+    }
+    setLastRelay(r);
+    location.assign(buildHref({ relay: r, device, token: token.trim() }));
   };
 
   const body = (
@@ -160,20 +196,73 @@ export default function Connect({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="field">
-        <label>配对链接（最快）</label>
-        <textarea
-          className="paste-box"
-          rows={2}
-          placeholder="https://relay.example.com/#device=xxx&token=…"
-          value={paste}
-          onChange={(e) => onPaste(e.target.value)}
-          spellCheck={false}
-        />
-        {paste.trim() && (
-          <div className={`parse-hint ${parsePairText(paste) ? 'ok' : 'bad'}`}>
-            {parsePairText(paste)
-              ? '✓ 已识别，设备与令牌已自动填入'
-              : '未识别出 device/token，请检查链接'}
+        <label>中继</label>
+        {relays.length > 0 && !addingRelay ? (
+          <div className="relay-pick">
+            <select
+              value={selectedRelay}
+              onChange={(e) => {
+                setSelectedRelay(e.target.value);
+                setRelay('');
+                setError(null);
+              }}
+            >
+              {relays.map((r) => (
+                <option key={r.url} value={r.url}>
+                  {(r.name ? r.name + ' · ' : '') + r.url.replace(/^wss?:\/\//, '')}
+                </option>
+              ))}
+            </select>
+            <button
+              className="mini-btn"
+              title="新增中继"
+              onClick={() => {
+                setAddingRelay(true);
+                setRelay('');
+              }}
+            >
+              ＋
+            </button>
+            {relays.length > 1 && (
+              <button
+                className="mini-btn danger"
+                title="移除当前中继"
+                onClick={() => {
+                  const rest = removeClientRelay(selectedRelay);
+                  setRelays(rest);
+                  if (rest[0]) setSelectedRelay(rest[0].url);
+                  else {
+                    setAddingRelay(true);
+                    setSelectedRelay('');
+                  }
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="relay-pick">
+            <input
+              value={relay}
+              onChange={(e) => {
+                setRelay(e.target.value);
+                setError(null);
+              }}
+              placeholder="wss://relay.example.com/ws 或 relay.example.com"
+              spellCheck={false}
+            />
+            {relays.length > 0 && (
+              <button
+                className="mini-btn"
+                onClick={() => {
+                  setAddingRelay(false);
+                  setRelay('');
+                }}
+              >
+                取消
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -201,6 +290,25 @@ export default function Connect({ onClose }: { onClose: () => void }) {
           spellCheck={false}
         />
       </div>
+
+      <details className="paste-fold">
+        <summary>或粘贴配对链接（自动填入并记住中继）</summary>
+        <textarea
+          className="paste-box"
+          rows={2}
+          placeholder="https://relay.example.com/#device=xxx&token=…"
+          value={paste}
+          onChange={(e) => onPaste(e.target.value)}
+          spellCheck={false}
+        />
+        {paste.trim() && (
+          <div className={`parse-hint ${parsePairText(paste) ? 'ok' : 'bad'}`}>
+            {parsePairText(paste)
+              ? '✓ 已识别，中继/设备/令牌已自动填入'
+              : '未识别出 device/token，请检查链接'}
+          </div>
+        )}
+      </details>
 
       {error && <div className="connect-error">{error}</div>}
 

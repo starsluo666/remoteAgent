@@ -3548,3 +3548,35 @@ body.in-tauri .tabs {
 .win-caps {
   top: 3px;
 }
+
+/* 连接弹窗：中继选择行 / 配对折叠 */
+.relay-pick {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.relay-pick select,
+.relay-pick input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+.paste-fold {
+  margin-top: 4px;
+}
+.paste-fold summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-3);
+  user-select: none;
+  padding: 6px 0;
+}
+.paste-fold[open] summary {
+  color: var(--text-2);
+}
