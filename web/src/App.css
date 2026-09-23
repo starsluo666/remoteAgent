@@ -3244,3 +3244,32 @@ body.in-tauri .tabs {
 .hero-cta.big:hover svg {
   transform: translateX(3px);
 }
+
+/* 已配对设备卡片（连接页/控制台首页） */
+.recent-item {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(127, 127, 127, 0.04);
+  margin-bottom: 8px;
+  transition: all 0.14s ease;
+}
+.recent-item:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  transform: translateY(-1px);
+}
+.recent-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.recent-host {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.recent-go {
+  flex: none;
+}

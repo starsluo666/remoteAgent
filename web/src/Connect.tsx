@@ -122,8 +122,46 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
           <path d="M5 7.5l4 4.5-4 4.5M12 16.5h7" />
         </svg>
       </div>
-      <div className="connect-title">连接到设备</div>
-      <div className="connect-sub">粘贴配对链接（中继全私有模型：设备不出现在公共列表，连接只认配对链接）</div>
+      <div className="connect-title">{modal ? '连接远程设备' : '我的设备'}</div>
+      <div className="connect-sub">
+        {modal
+          ? '粘贴对方发来的配对链接，或输入设备号 + 访问令牌'
+          : '选择设备一键连接；没有配对过？粘贴配对链接添加'}
+      </div>
+
+      {recents.length > 0 && (
+        <div className="recents">
+          <div className="recents-title">已配对设备</div>
+          {recents.map((c) => (
+            <div key={c.url} className="recent-item" onClick={() => location.assign(c.url)}>
+              <span className="dot ok" />
+              <div className="recent-main">
+                <span className="recent-device">
+                  {c.deviceId.length > 12 ? c.deviceId.slice(0, 8) : c.deviceId}
+                </span>
+                <span className="recent-host">{c.relayHost}</span>
+              </div>
+              <span className="recent-time">{timeAgo(c.savedAt)}</span>
+              <button className="mini-btn accent recent-go">连接</button>
+              <button
+                className="recent-del"
+                title="移除记录"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeConn(c.url);
+                  setRecents(loadConns());
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="divider">
+        <span>添加新设备</span>
+      </div>
 
       <div className="field">
         <label>配对链接（最快）</label>
@@ -144,12 +182,8 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
         )}
       </div>
 
-      <div className="divider">
-        <span>或手动输入</span>
-      </div>
-
       <div className="field">
-        <label>设备 ID</label>
+        <label>设备号</label>
         <input
           value={device ?? ''}
           onChange={(e) => {
@@ -177,31 +211,6 @@ export default function Connect({ modal = false, onClose }: { modal?: boolean; o
       <button className="primary-btn connect-go" onClick={connect}>
         连接
       </button>
-
-      {recents.length > 0 && (
-        <div className="recents">
-          <div className="recents-title">最近连接</div>
-          {recents.map((c) => (
-            <div key={c.url} className="recent-item" onClick={() => location.assign(c.url)}>
-              <span className="dot ok" />
-              <span className="recent-host">{c.relayHost}</span>
-              <span className="recent-device">{c.deviceId.length > 12 ? c.deviceId.slice(0, 8) : c.deviceId}</span>
-              <span className="recent-time">{timeAgo(c.savedAt)}</span>
-              <button
-                className="recent-del"
-                title="移除记录"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeConn(c.url);
-                  setRecents(loadConns());
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
 
       <div className="connect-foot">🔒 中继无法读取会话内容 —— 数据在设备与浏览器间端到端加密</div>
     </div>
