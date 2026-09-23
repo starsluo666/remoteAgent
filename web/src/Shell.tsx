@@ -131,7 +131,7 @@ export default function Shell() {
         <main className="shell-main" key={page}>
           {page === 'overview' && <OverviewPage local={local} refresh={refreshLocal} />}
           {page === 'devices' && <DevicesPage local={local} />}
-          {page === 'sessions' && <SessionsPage />}
+          {page === 'sessions' && <SessionsPage remote={!local.deviceId} />}
           {page === 'relay' && <RelayPage local={local} refresh={refreshLocal} />}
           {page === 'settings' && <SettingsPage local={local} onHelp={() => navigate('help')} />}
           {page === 'help' && <HelpPage />}

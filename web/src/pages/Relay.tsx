@@ -23,6 +23,27 @@ function uptime(from: number): string {
 }
 
 export default function RelayPage({ local, refresh }: Props) {
+  // 远程端（手机/浏览器访客，本机无 daemon）：中继配置在家里电脑的面板做
+  if (!local.deviceId) {
+    return (
+      <div className="page">
+        <div className="page-head">
+          <div>
+            <div className="page-title">中继服务</div>
+            <div className="page-sub">远程端 · 只读</div>
+          </div>
+        </div>
+        <div className="panel-card">
+          <div className="panel-title">中继由家里电脑连接</div>
+          <div className="info-hint">
+            daemon 在家里电脑上注册中继后，你在这里即可看到设备状态。
+            中继地址、多中继管理等配置请在家里电脑的面板（中继服务页）操作；
+            手机连接设备用「设备 → 连接远程设备」粘贴配对链接。
+          </div>
+        </div>
+      </div>
+    );
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [latency, setLatency] = useState<number | null>(null);

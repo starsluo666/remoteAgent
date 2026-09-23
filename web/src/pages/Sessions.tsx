@@ -31,7 +31,7 @@ function agentOf(cmd: string): { label: string; cls: string } {
   return { label: '终端', cls: 'agent-term' };
 }
 
-export default function SessionsPage() {
+export default function SessionsPage({ remote = false }: { remote?: boolean }) {
   const [data] = usePoll<{ sessions: SessionRow[] }>(
     () => fetch(localApi('/api/sessions')).then((r) => (r.ok ? r.json() : Promise.reject())),
     3000,
@@ -53,9 +53,17 @@ export default function SessionsPage() {
 
       {sessions.length === 0 ? (
         <div className="empty-table">
-          <div className="empty-title">没有运行中的会话</div>
-          <div className="empty-sub">选择一个工作台启动 —— 会话在家里跑着，手机/浏览器随时接管</div>
-          <QuickLaunch hint="需要对应 CLI 已安装并登录（codex / claude）" />
+          <div className="empty-title">{remote ? '尚未连接设备' : '没有运行中的会话'}</div>
+          {remote ? (
+            <div className="empty-sub">
+              到「设备 → 连接远程设备」粘贴配对链接连接你的电脑，即可查看与接管它的 AI 会话
+            </div>
+          ) : (
+            <>
+              <div className="empty-sub">选择一个工作台启动 —— 会话在家里跑着，手机/浏览器随时接管</div>
+              <QuickLaunch hint="需要对应 CLI 已安装并登录（codex / claude）" />
+            </>
+          )}
         </div>
       ) : (
         <div className="ra-table">

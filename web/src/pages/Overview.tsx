@@ -164,8 +164,20 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
         </button>
       </div>
 
-      {/* AI 会话 hero：有 AI 在跑 → 实时状态大卡；没有 → 快速启动 */}
-      {hero ? (
+      {/* AI 会话 hero：有 AI 在跑 → 实时状态大卡；远程端 → 连接指引；本机无会话 → 快速启动 */}
+      {!local.deviceId && !hero ? (
+        <div className="ai-hero launch">
+          <div className="ai-hero-head">
+            <span className="ai-hero-ico dim">🤖</span>
+            <div className="ai-hero-main">
+              <div className="ai-hero-title">连接你的电脑</div>
+              <div className="ai-hero-meta">
+                远程端 · 到「设备 → 连接远程设备」粘贴家里电脑的配对链接，即可查看与接管它的 AI 会话
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : hero ? (
         <div className="ai-hero">
           <div className="ai-hero-head">
             <span className="ai-hero-ico">🤖</span>
