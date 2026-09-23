@@ -3192,3 +3192,40 @@ html[data-theme='light'] .code-block {
 body.in-tauri .tabs {
   padding-right: 118px;
 }
+
+/* 窗口按钮美化：描边图标 + 精细悬停/按压态 */
+.win-caps {
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  transition: all 0.18s ease;
+}
+.win-caps:hover {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  backdrop-filter: blur(6px);
+}
+.win-cap {
+  width: 32px;
+  height: 26px;
+  border-radius: 8px;
+  color: var(--text-3);
+  transition: all 0.13s ease;
+}
+.win-cap svg {
+  width: 11px;
+  height: 11px;
+}
+.win-cap:hover {
+  background: var(--card-hi);
+  color: var(--text);
+}
+.win-cap:active {
+  transform: scale(0.92);
+}
+.win-cap.is-close:hover {
+  background: var(--red);
+  border-color: transparent;
+  color: #fff;
+}
