@@ -6,6 +6,8 @@ import { localApi } from '../lib/local';
 import { usePoll } from '../lib/usePoll';
 import { relayHttpBase } from '../lib/target';
 import QuickLaunch from './QuickLaunch';
+import { loadConns } from '../Connect';
+import { loadClientRelays } from '../lib/relays';
 import type { LocalInfo, SessionRow } from './types';
 
 function timeAgo(ts: number): string {
@@ -50,6 +52,15 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
   const sessions = data.sessions;
 
   const relayWeb = local.relayUrl ? `${relayHttpBase(local.relayUrl)}/` : null;
+  // 远程端统计：配对设备数 / 我的中继数
+  const [pairedCount, setPairedCount] = useState(0);
+  const [relayCount, setRelayCount] = useState(0);
+  useEffect(() => {
+    if (!local.deviceId) {
+      setPairedCount(loadConns().length);
+      setRelayCount(loadClientRelays().length);
+    }
+  }, [local.deviceId]);
   const hero = pickHero(sessions);
   const moreAi = sessions.filter((s) => s.agent && s.id !== hero?.id).length;
 
@@ -159,9 +170,15 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
           <div className="page-title">概览</div>
           <div className="page-sub">设备身份与终端会话总览</div>
         </div>
-        <button className="primary-btn" onClick={() => location.assign('?local=1')}>
-          打开本机终端
-        </button>
+        {!local.deviceId ? (
+          <button className="primary-btn" onClick={() => (location.hash = '#/devices')}>
+            连接远程设备
+          </button>
+        ) : (
+          <button className="primary-btn" onClick={() => location.assign('?local=1')}>
+            打开本机终端
+          </button>
+        )}
       </div>
 
       {/* AI 会话 hero：有 AI 在跑 → 实时状态大卡；远程端 → 连接指引；本机无会话 → 快速启动 */}
@@ -221,6 +238,13 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
       )}
 
       <div className="stat-grid">
+        {!local.deviceId ? (
+          <div className="stat-card">
+            <div className="stat-label">已配对设备</div>
+            <div className="stat-value">{pairedCount}</div>
+            <div className="stat-foot">{pairedCount > 0 ? '设备页一键重连' : '到设备页添加'}</div>
+          </div>
+        ) : (
         <div className="stat-card">
           <div className="stat-label">设备 ID</div>
           <div className="stat-value mono" style={{ fontSize: 15, wordBreak: 'break-all' }}>
@@ -230,6 +254,14 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
             复制
           </button>
         </div>
+        )}
+        {!local.deviceId ? (
+          <div className="stat-card">
+            <div className="stat-label">我的中继</div>
+            <div className="stat-value">{relayCount}</div>
+            <div className="stat-foot">{relayCount > 0 ? '中继页管理' : '到中继页添加'}</div>
+          </div>
+        ) : (
         <div className="stat-card">
           <div className="stat-label">访问令牌</div>
           <div className="stat-value mono" style={{ fontSize: 15, wordBreak: 'break-all' }}>
@@ -244,6 +276,8 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
             </button>
           </div>
         </div>
+        )}
+        {!local.deviceId ? null : (
         <div className="stat-card">
           <div className="stat-label">活跃会话</div>
           <div className="stat-value">{sessions.length}</div>
@@ -253,6 +287,14 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
               : '点上方卡片一键启动'}
           </div>
         </div>
+        )}
+        {!local.deviceId ? (
+          <div className="stat-card">
+            <div className="stat-label">连接指引</div>
+            <div className="stat-value" style={{ fontSize: 15 }}>设备号 + 令牌</div>
+            <div className="stat-foot">中继已记住，新设备只输这两项</div>
+          </div>
+        ) : (
         <div className={`stat-card ${local.relayOnline ? 'good' : local.relayUrl ? 'warn' : ''}`}>
           <div className="stat-label">中继服务</div>
           <div className="stat-value">{local.relayOnline ? '已连接' : local.relayUrl ? '重试中' : '未连接'}</div>
@@ -262,6 +304,7 @@ export default function OverviewPage({ local, refresh }: { local: LocalInfo; ref
               : '配置中继后手机可远程接入'}
           </div>
         </div>
+        )}
       </div>
 
       {editingToken && (
