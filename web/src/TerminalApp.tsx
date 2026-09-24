@@ -773,14 +773,17 @@ export default function TerminalApp() {
                 className="mb-input"
                 value={mobileInput}
                 onChange={(e) => setMobileInput(e.target.value)}
+                onFocus={() => {
+                  // 点输入框自动接管：观察模式下输入框不可用的发现性太差（用户以为没有输入框）
+                  if (!takeoverRef.current) setMode(true);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     sendMobileLine();
                   }
                 }}
-                placeholder={takeover ? '输入命令，回车发送' : '观察模式：先点左侧切换接管'}
-                disabled={!takeover}
+                placeholder={takeover ? '输入命令，回车发送' : '点此接管后输入'}
                 enterKeyHint="send"
               />
             </div>
