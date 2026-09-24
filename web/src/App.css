@@ -3643,3 +3643,19 @@ body.in-tauri .tabs {
     flex: 1 1 auto;
   }
 }
+
+/* 手机操作栏两行布局：功能键一行 + 输入框独占一行（窄屏不挤压输入框） */
+@media (max-width: 760px) {
+  .mobile-bar {
+    flex-wrap: wrap;
+  }
+  .mb-mode,
+  .mb-key {
+    flex: none;
+  }
+  .mb-input {
+    flex: 1 1 100%;
+    order: 2;
+    min-width: 0;
+  }
+}
