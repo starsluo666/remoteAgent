@@ -3596,3 +3596,50 @@ body.in-tauri .tabs {
   flex: 1;
   color: var(--text-2);
 }
+
+/* 手机端表格改为卡片流：不做横向滚动，行内多列折行 */
+@media (max-width: 760px) {
+  .ra-table {
+    overflow-x: visible;
+  }
+  .ra-row,
+  .ra-row.head {
+    min-width: 0;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .ra-row.head {
+    display: none;
+  }
+  .ra-row {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    padding: 12px 14px;
+    background: var(--card);
+  }
+  /* 各列自适应宽度：名称占满、其余跟随内容 */
+  .col-name {
+    flex: 1 1 100%;
+  }
+  .col-url {
+    flex: 1 1 100%;
+    font-size: 11px;
+    word-break: break-all;
+  }
+  .col-ai,
+  .col-viewers,
+  .col-state {
+    flex: 1 1 auto;
+  }
+  .col-act {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+  .col-sid,
+  .col-time,
+  .col-dur {
+    flex: 1 1 auto;
+  }
+}
