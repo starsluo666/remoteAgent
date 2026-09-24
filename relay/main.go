@@ -85,12 +85,23 @@ func readPump(h *hub, c *conn) {
 	}()
 
 	// 防护：单帧上限 1MB（默认不限长，公网会被巨型帧 OOM）；
-	// 读超时 + pong 续期：空闲连接由对端周期 ping 保活，超时即判定死亡
+	// 读超时 + ping/pong 双续期：空闲连接由对端周期 ping 保活，超时即判定死亡。
+	// 关键：gorilla 的 ReadMessage 只对数据帧返回——控制帧（Ping）走 handler
+	// 且不触发循环体的续期。若只在 PongHandler 续期，daemon 发的是 Ping，
+	// 90 秒后必死（实测：E2E 认证后 kick 流停止 → 只剩 Ping → 恰好 90s 断）
 	const pongWait = 90 * time.Second
+	const writeWait = 10 * time.Second
 	c.ws.SetReadLimit(1 << 20)
 	c.ws.SetReadDeadline(time.Now().Add(pongWait))
 	c.ws.SetPongHandler(func(string) error {
 		return c.ws.SetReadDeadline(time.Now().Add(pongWait))
+	})
+	c.ws.SetPingHandler(func(appData string) error {
+		if err := c.ws.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+			return err
+		}
+		// 保留默认行为：回 Pong（续写超时由 writeWait 控制）
+		return c.ws.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(writeWait))
 	})
 
 	// 握手：第一条必须是 hello v1
