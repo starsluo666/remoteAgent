@@ -17,7 +17,9 @@ android {
     compileSdk = 36
     namespace = "dev.remoteagent.desktop"
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        // 自建中继多为 http://（无域名签不了证书），release 也放行明文 ——
+        // 内容端到端加密，明文层只暴露中继元数据；上 TLS 后可收回
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "dev.remoteagent.desktop"
         minSdk = 24
         targetSdk = 34
