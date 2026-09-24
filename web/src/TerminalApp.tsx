@@ -108,6 +108,7 @@ export default function TerminalApp() {
   // 断线重连：尝试计数（横幅显示 + 指数退避）
   const attemptsRef = useRef(0);
   const [attempts, setAttempts] = useState(0);
+  const [busyHint, setBusyHint] = useState(false);
   // 观察/接管：观察模式拦截键盘输入（防误触打断 AI）；触屏设备默认观察。
   // 面板入口带 takeover=1 时强制接管（如概览页「接管输入」按钮）
   const isTouch = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
@@ -262,6 +263,7 @@ export default function TerminalApp() {
         if (s === 'ready') {
           attemptsRef.current = 0;
           setAttempts(0);
+          setBusyHint(false);
           bootstrapRef.current();
           // 连接成功后记住这次配对，连接页可一键重连
           if (!savedConnRef.current) {
@@ -334,6 +336,7 @@ export default function TerminalApp() {
         if (conn) void refetchSessions(conn);
       },
       onError: (code, msg) => {
+        setBusyHint(code === 'device_busy' || code === 'local_busy');
         if (
           code === 'auth_failed' ||
           code === 'device_busy' ||
@@ -623,8 +626,10 @@ export default function TerminalApp() {
           <div className="conn-banner">
             <span className={`dot ${statusBadge.cls}`} />
             <span>
-              连接已断开，正在重连…
-              {attempts > 1 && <span className="cb-attempts">（第 {attempts} 次尝试）</span>}
+              {busyHint
+                ? '设备正被另一个窗口占用（同一设备同时只允许一个查看端）—— 关掉旧窗口后自动接入'
+                : '连接已断开，正在重连…'}
+              {!busyHint && attempts > 1 && <span className="cb-attempts">（第 {attempts} 次尝试）</span>}
             </span>
             <button className="cb-retry" onClick={() => connRef.current?.reconnect()}>
               立即重连
