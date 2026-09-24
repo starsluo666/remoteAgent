@@ -119,7 +119,13 @@ export default function DevicesPage({ local }: { local: LocalInfo }) {
       )}
 
       {wizardOpen && <AddDeviceWizard local={local} onClose={() => setWizardOpen(false)} />}
-      {connectOpen && <Connect onClose={() => setConnectOpen(false)} />}
+      {connectOpen && (
+        <Connect
+          onClose={() => setConnectOpen(false)}
+          seedRelays={local.deviceId ? local.relays : undefined}
+          seedActive={local.activeRelay ?? undefined}
+        />
+      )}
     </div>
   );
 }

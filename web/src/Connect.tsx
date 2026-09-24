@@ -92,7 +92,16 @@ function timeAgo(ts: number): string {
   return `${Math.floor(s / 86400)} 天前`;
 }
 
-export default function Connect({ onClose }: { onClose: () => void }) {
+export default function Connect({
+  onClose,
+  seedRelays,
+  seedActive,
+}: {
+  onClose: () => void;
+  /** daemon 侧已配置的中继（桌面端）：首次打开自动导入，免去手输 */
+  seedRelays?: { name?: string; url: string }[];
+  seedActive?: string;
+}) {
   const [paste, setPaste] = useState('');
   const [relay, setRelay] = useState('');
   const [token, setToken] = useState('');
@@ -107,11 +116,20 @@ export default function Connect({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     setRecents(loadConns());
-    // 初始选中：上次用的 → 列表第一个
+    // 桌面端：daemon 已配置的中继导入客户端列表（一次，之后本地维护）
+    if (seedRelays) {
+      for (const r of seedRelays) {
+        if (r.url && !loadClientRelays().some((x) => x.url === r.url)) addClientRelay(r.url, r.name);
+      }
+    }
+    // 初始选中：上次用的 → daemon 活动中继 → 列表第一个
     const list = loadClientRelays();
     const last = getLastRelay();
     if (last && list.some((r) => r.url === last)) setSelectedRelay(last);
+    else if (seedActive && list.some((r) => r.url === seedActive)) setSelectedRelay(seedActive);
     else if (list[0]) setSelectedRelay(list[0].url);
+    setRelays(loadClientRelays());
+    setAddingRelay(loadClientRelays().length === 0);
   }, []);
 
   // 粘贴即解析：识别出配对链接后自动选中设备并填入令牌；链接里的中继顺手记住
